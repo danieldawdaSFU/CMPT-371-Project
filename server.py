@@ -34,7 +34,6 @@ gameState = {'pos': [[100, 100],
 
 #handle all inputs from players, outputs will be handled in bulk via the broadcastGame() function
 def handleConnection(connection, index):
-    print("test")
     global gameStarted
     while True:
         with mutex:
@@ -64,9 +63,8 @@ def broadcastGameUpdates():
                             str(gameState["pos"][2][1]).zfill(3)+
                             str(gameState["pos"][3][0]).zfill(3)+
                             str(gameState["pos"][3][1]).zfill(3))
-            print(data)
             conn.send(data.encode())
-            time.sleep(0.2)
+            time.sleep(0.01)
 
 #Fill the connectionsList, and create threads for them
 def getInitPlayers():
@@ -175,7 +173,7 @@ def updateGameState():
 
     while True:
         gameState['pos'] = updatePositions(playerInputs, gameState['pos'])
-        time.sleep(0.2)
+        time.sleep(0.005)
 
 
 
