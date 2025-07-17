@@ -1,15 +1,17 @@
 import socket
 from threading import Thread
 from threading import Lock
-from game import updatePositions
 import time
 
 sock = socket.socket(
     socket.AF_INET,
     socket.SOCK_STREAM)
 
+#Number of bytes for a message header. ex "PLYRMOVE"
+MESSAGE_HEADER_LENGTH = 8
+
 #server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
-sock.bind(("127.0.0.1", 53333))
+sock.bind(("", 53333))
 
 mutex = Lock() #general mutex lock for player state changes (new inputs, changing connectionsList, etc)
 #### Mutex locked variables
@@ -22,15 +24,25 @@ playerInputs = [[False, False, False, False],
                 [False, False, False, False],
                 [False, False, False, False],
                 [False, False, False, False]]
-# itinital game state dict
-gameState = {'pos': [[100, 100],
-                    [200, 100],
-                    [100, 200],
-                    [200, 200]]}
+
+# itinital game state dict (X/Y)
+gameState = {'pos': [[4, 4],
+                     [5, 4],
+                     [4, 5],
+                     [5, 5]]}
 
 ### end Mutex locked variables
 
-
+#remove a client/thread (dont call from a thread when possible)
+def removeConnection(index):
+    #do not get mutex before calling
+    try:
+        if clientThreads[index] != None:
+            with mutex:
+                clientThreads[index] = None
+                connectionList[index] = None
+    except:
+        print("Failed to join thread when removing connection.")
 
 #handle all inputs from players, outputs will be handled in bulk via the broadcastGame() function
 def handleConnection(connection, index):
@@ -42,29 +54,54 @@ def handleConnection(connection, index):
                 connection.close()
                 #end this thread
                 return
-            try:
-                #general receive logic
-                pass
-            except:
-                #close socket on error
-                pass
+        try:
+            #general receive logic
+            if connectionList[index] == None:
+                #error, block thread.
+                while 1:
+                    pass
+
+            data = connection.recv(MESSAGE_HEADER_LENGTH).decode()
+            if data == "PLYRMOVE":
+                #read <N/S/E/W><1/0>
+                data = connection.recv(2).decode()
+                with mutex:
+                    # if recv PLYRMOVE data then move based on dir
+                    for dirr in range(len(playerInputs[index])):
+                        playerInputs[index][dirr] = False
+                    if "N" in data:
+                        playerInputs[index][0] = (data[1] == "1")
+                    elif "S" in data:
+                        playerInputs[index][1] = (data[1] == "1")
+                    elif "W" in data:
+                        playerInputs[index][2] = (data[1] == "1")
+                    elif "E" in data:
+                        playerInputs[index][3] = (data[1] == "1")
+        except:
+            #close socket on error #todo
+            pass
         
 
 #function to send the current game state to all players
 def broadcastGameUpdates():
-    while True:
-        for conn in connectionList:
-            # format data ("POSXXXYYYXXXYYYXXXYYYXXXYYY")
-            data = ("POS"+str(gameState["pos"][0][0]).zfill(3)+
-                            str(gameState["pos"][0][1]).zfill(3)+
-                            str(gameState["pos"][1][0]).zfill(3)+
-                            str(gameState["pos"][1][1]).zfill(3)+
-                            str(gameState["pos"][2][0]).zfill(3)+
-                            str(gameState["pos"][2][1]).zfill(3)+
-                            str(gameState["pos"][3][0]).zfill(3)+
-                            str(gameState["pos"][3][1]).zfill(3))
-            conn.send(data.encode())
-            time.sleep(0.01)
+    with mutex:
+        data = ("PLYRUPDT"+str(gameState["pos"][0][0]).zfill(2)+
+                        str(gameState["pos"][0][1]).zfill(2)+
+                        str(gameState["pos"][1][0]).zfill(2)+
+                        str(gameState["pos"][1][1]).zfill(2)+
+                        str(gameState["pos"][2][0]).zfill(2)+
+                        str(gameState["pos"][2][1]).zfill(2)+
+                        str(gameState["pos"][3][0]).zfill(2)+
+                        str(gameState["pos"][3][1]).zfill(2))
+    for conn in range(len(connectionList)):
+        # format data ("PLYRUPDTXXYYXXYYXXYYXXYY")
+        try:
+            if connectionList[conn] != None:
+                connectionList[conn].send(data.encode())
+        except Exception as e:
+            print(f"An unexpected error occurred during broadcast: {e}")
+            #they left, close socket and join thread
+            removeConnection(conn)
 
 #Fill the connectionsList, and create threads for them
 def getInitPlayers():
@@ -82,7 +119,7 @@ def getInitPlayers():
                     connection.send(("PLYRJOIN" + str(index)).encode())
 
                     #player should echo their player number
-                    data = connection.recv(9)
+                    data = connection.recv(MESSAGE_HEADER_LENGTH + 1)
                     if data == b'':
                         toRemove.append(connection)
                 except Exception as e:
@@ -90,8 +127,7 @@ def getInitPlayers():
                     #sending failed, so remove that client.
                     toRemove.append(connection)
 
-                index += 1
-                    
+                index += 1   
             for conn in toRemove:
                 connectionsList.remove(conn)
 
@@ -111,72 +147,53 @@ def getInitPlayers():
 
     #send startGame message (since all players have received their number)
     #   If players leave from this point, then we will just play with less players
-    
     #update global list, and start threads
     global gameStarted
     global connectionList
     global clientThreads
+    dropList = []
     with mutex:
         connectionList = connectionsList
-        for conn in connectionList:
+        for conn in range(len(connectionList)):
             #send all clients the "GO" message. They should already have their player number
-            conn.send("GAMESTRT".encode())
-
-            t = Thread(target = handleConnection, args=(connection, len(connectionsList)-1))
+            try:
+                connectionList[conn].send("GAMESTRT".encode())
+            except:
+                dropList.append(conn)
+                #failed to send to client, we will just ignore them then. Remove socket/thread
+                print("Failed to send game start to some players. removing them")
+                
+            t = Thread(target = handleConnection, args=(connectionList[conn], conn))
             t.start()
             clientThreads.append(t)
         gameStarted = True
-        
-
+    for i in dropList:
+        removeConnection(i)
         
     return
 
-def initInputs():
-        
-        # launch a thread for each clients movement
-        for conn in connectionList:
-            Thread(target = inputs, args=(conn,)).start()
-
-def inputs(conn):
-
-    idx = connectionList.index(conn)
-    while True:
-        data = conn.recv(32).decode()
-        with mutex:
-            # if recv MOV data then mov based on dir
-            if "MOV" in data:
-                # print("START")
-                if "up" in data:
-                    playerInputs[idx][0] = True
-                elif "left" in data:
-                    playerInputs[idx][1] = True
-                elif "down" in data:
-                    playerInputs[idx][2] = True
-                elif "right" in data:
-                    playerInputs[idx][3] = True
-                
-            elif "STOP" in data:
-                # print("STOP")
-                if "up" in data:
-                    playerInputs[idx][0] = False
-                elif "left" in data:
-                    playerInputs[idx][1] = False
-                elif "down" in data:
-                    playerInputs[idx][2] = False
-                elif "right" in data:
-                    playerInputs[idx][3] = False
-
-                
-                # print(playerInputs)
+def updatePositions(playerInputs, positions):
+    with mutex:
+        for player in range(len(positions)):
+            if playerInputs[player][0]:
+                #N
+                positions[player][1] -= 1
+                positions[player][1] %= 10
+            elif playerInputs[player][1]:
+                #S
+                positions[player][1] += 1
+                positions[player][1] %= 10
+            elif playerInputs[player][2]:
+                #W
+                positions[player][0] -= 1
+                positions[player][0] %= 10
+            elif playerInputs[player][3]:
+                #E
+                positions[player][0] += 1
+                positions[player][0] %= 10
 
 def updateGameState():
-
-    while True:
-        gameState['pos'] = updatePositions(playerInputs, gameState['pos'])
-        time.sleep(0.005)
-
-
-
+    updatePositions(playerInputs, gameState['pos'])
 
 def main():
     #loop so we can start new games afterwards
@@ -185,21 +202,20 @@ def main():
         #start game
         getInitPlayers()
         
-        #new inputs come from threads, mutex game logic
-        initInputs()
         
         #run game logic
-        Thread(target = updateGameState, args=()).start()
+        while gameStarted:
+            #send new game state
+            updateGameState()
+            broadcastGameUpdates()
+            time.sleep(0.5)
 
-        #send new game state
-        broadcastGameUpdates()
-        
         #game end
         with mutex:
             gameStarted = False
 
-        #make sure all threads close
-        for thread in clientThreads:
-            thread.join()
+        #make sure all threads close and sockets close
+        for thread in range(len(clientThreads)):
+            removeConnection(thread)
 
 main()

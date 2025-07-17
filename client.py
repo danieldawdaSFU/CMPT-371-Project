@@ -1,21 +1,29 @@
 import socket
 from threading import Thread
+from threading import Lock
 import pygame 
-import time
 
 sock = socket.socket(
     socket.AF_INET,
     socket.SOCK_STREAM)
 
-MESSAGE_HEADER_LENGTH = 1
+#Number of bytes for a message header. ex "PLYRMOVE"
+MESSAGE_HEADER_LENGTH = 8
 
+
+mutex = Lock() #general mutex lock for player state changes (new inputs, changing connectionsList, etc)
+#### Mutex locked variables
 playerNumber = -1
 gameStarted = False
 
+#init player positions
 positions = [[100, 100],
              [200, 100],
              [100, 200],
              [200, 200]]
+### end Mutex locked variables
+
+clientInputs = [False, False, False, False]
 
 player_height = 15
 player_width = 15
@@ -33,94 +41,122 @@ def connect(address, port):
     #we will receive a player number first.
     #then we will receive a game start message
     while not gameStarted:
-        data = sock.recv(8)
+        data = sock.recv(MESSAGE_HEADER_LENGTH)
         if data == b"GAMESTRT":
             gameStarted = True
         elif data == b"PLYRJOIN":
             #updated player number
+
+            #receive 1 byte for player number
             playerNumber = sock.recv(1).decode()
+
             #send player number back as confirmation that we are active
             sock.send(data)
+    print("I am player", playerNumber)
 
     return playerNumber
 
-# def init_game():
-#     # init pygame   
-#     pygame.init() 
+def send_move(dir, down):
+    # construct message ("PLYRMOVE <N/S/E/W direction> + <1/0>")
+    if down:
+        msg = "PLYRMOVE" + dir + "1"
+        sock.send(msg.encode())
+    else:
+        msg = "PLYRMOVE" + dir + "0"
+        sock.send(msg.encode())
 
-#     # game window
-#     global win 
-#     win = pygame.display.set_mode((1000, 800)) 
-#     pygame.display.set_caption("Game")
-
-def send_move(dir):
-    # construct message ("MOV <direction>")
-    msg = "MOV" + dir
-    sock.send(msg.encode())
-
-def send_stop(dir):
-    # construct message ("STOP <direction>")
-    msg = "STOP" + dir
-    sock.send(msg.encode())
-
-def inputs():
+def inputHandler():
     # always check inputs
     while True: 
-        pygame.time.delay(1) 
+        #dont bombard the server with messages
+        pygame.time.delay(1)
         
         for event in pygame.event.get(): 
             # if quit then close game
             if event.type == pygame.QUIT: 
                 pygame.quit()
+        with mutex:
+            if gameStarted == False:
+                #game ended
+                return
 
         # get keydown and send data
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                send_move("up")
-            if event.key == pygame.K_DOWN:
-                send_move("down")    
-            if event.key == pygame.K_LEFT:
-                send_move("left") 
-            if event.key == pygame.K_RIGHT:
-                send_move("right") 
+        with mutex:
+            if event.type == pygame.KEYDOWN:
+                eventNum = -1
+                if event.key == pygame.K_UP and clientInputs[0] == False:
+                    eventNum = 0
+                    send_move("N", True)
+                    clientInputs[0] = True
+                elif event.key == pygame.K_DOWN and clientInputs[1] == False:
+                    eventNum = 1
+                    send_move("S", True)  
+                    clientInputs[1] = True 
+                elif event.key == pygame.K_LEFT and clientInputs[2] == False:
+                    eventNum = 2
+                    send_move("W", True)
+                    clientInputs[2] = True
+                elif event.key == pygame.K_RIGHT and clientInputs[3] == False:
+                    eventNum = 3
+                    send_move("E", True) 
+                    clientInputs[3] = True
+                if (event.key == pygame.K_UP or event.key == pygame.K_DOWN or 
+                   event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT):
+                    # for i in range(len(clientInputs)):
+                    #     clientInputs[i] = False
+                    #     if i == eventNum:
+                    #         clientInputs[i] = True
+                    pass
 
-        # get keyup and send data
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_UP:
-                send_stop("up")
-            if event.key == pygame.K_DOWN:
-                send_stop("down")
-            if event.key == pygame.K_LEFT:
-                send_stop("left")
-            if event.key == pygame.K_RIGHT:
-                send_stop("right")
-
-        UpdateDisplay()
+            # get keyup and send data
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_UP and clientInputs[0] == True:
+                    send_move("N", False)
+                    clientInputs[0] = False
+                if event.key == pygame.K_DOWN and clientInputs[1] == True:
+                    send_move("S", False)
+                    clientInputs[1] = False
+                if event.key == pygame.K_LEFT and clientInputs[2] == True:
+                    send_move("W", False)
+                    clientInputs[2] = False
+                if event.key == pygame.K_RIGHT and clientInputs[3] == True:
+                    send_move("E", False)
+                    clientInputs[3] = False
             
 def recvGameUpdates():
     # constantly check for game updates
     while True:
         # data will be "POSXXXYYYXXXYYYXXXYYYXXXYYY"
-        data = sock.recv(32).decode()
-        if data[:3] == "POS":
-            
+        try: 
+            data = sock.recv(MESSAGE_HEADER_LENGTH).decode()
+        except:
+            #Failed to get update. Dissconnect.
+            #todo
+            pass
+        if data == "PLYRUPDT":
+            #receive each players position
+            # Format is PLYRUPDTXXYYXXYYXXYYXXYY
+            #ie. 2 chars for each players x/y position, and 4 players
             for i in range(4):
-                x_vals = 3 + (i * 6)
-                y_vals = 6 + (i * 6)
+                data = sock.recv(2).decode()
+                x_pos = int(data)
+                data = sock.recv(2).decode()
+                y_pos = int(data)
 
                 #update player posititons
-                positions[i][0] = int(data[x_vals:x_vals+3])
-                positions[i][1] = int(data[y_vals:y_vals+3])
+                with mutex:
+                    positions[i][0] = x_pos
+                    positions[i][1] = y_pos
+        updateDisplay()
 
-def UpdateDisplay():
-
-    pygame.time.delay(10) 
+def updateDisplay():
     win.fill((0, 0, 0)) 
     # draw all players 
     for i in range(4):
         try:
-            x, y = positions[i]
-            pygame.draw.rect(win, (255, 0, 0), (x, y, player_width, player_height))
+            with mutex:
+                x, y = positions[i]
+            pygame.draw.rect(win, (255, 0, 0), (x*50, y*50, player_width, player_height))
         except Exception as e:
             print(f"Error drawing player {i}: {e}")
     
@@ -131,14 +167,14 @@ def UpdateDisplay():
 def main():
     global playerNumber
     #connect, wait until game starts
-    playerNumber = connect("127.0.0.1", 53333)
+    playerNumber = connect("asb9804-D04", 53333)
     print("Game Started. My player number is:", playerNumber)
     #game is now started
     # init_game()
-    #make thread to receive game state updates (mutex needed)
+    #make thread to receive game state updates/drawing it (mutex needed)
     Thread(target = recvGameUpdates, args=()).start()
     #make thread for sending inputs (mutex needed for verifying legal inputs)
-    inputs()
+    inputHandler()
 
     while gameStarted:
         pass
