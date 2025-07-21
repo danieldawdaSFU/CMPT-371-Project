@@ -11,7 +11,7 @@ sock = socket.socket(
 MESSAGE_HEADER_LENGTH = 8
 
 #server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
-sock.bind(("", 53333))
+sock.bind(("localhost", 53333))
 
 mutex = Lock() #general mutex lock for player state changes (new inputs, changing connectionsList, etc)
 #### Mutex locked variables
@@ -25,11 +25,15 @@ playerInputs = [[False, False, False, False],
                 [False, False, False, False],
                 [False, False, False, False]]
 
+# 16x16 grid (each tile is 50 pixels)
+GRID_WIDTH = GRID_HEIGHT = 16
+
 # itinital game state dict (X/Y)
-gameState = {'pos': [[4, 4],
-                     [5, 4],
-                     [4, 5],
-                     [5, 5]]}
+# players start at the center of the grid
+gameState = {'pos': [[7, 7],
+                     [8, 7],
+                     [7, 8],
+                     [8, 8]]}
 
 ### end Mutex locked variables
 
@@ -80,7 +84,7 @@ def handleConnection(connection, index):
         except:
             #close socket on error #todo
             pass
-        
+
 
 #function to send the current game state to all players
 def broadcastGameUpdates():
@@ -127,7 +131,7 @@ def getInitPlayers():
                     #sending failed, so remove that client.
                     toRemove.append(connection)
 
-                index += 1   
+                index += 1
             for conn in toRemove:
                 connectionsList.remove(conn)
 
@@ -141,7 +145,7 @@ def getInitPlayers():
             sock.listen(4-len(connectionsList))
             connection, address = sock.accept()
             print("New Connection")
-            
+
             #update list
             connectionsList.append(connection)
 
@@ -162,14 +166,14 @@ def getInitPlayers():
                 dropList.append(conn)
                 #failed to send to client, we will just ignore them then. Remove socket/thread
                 print("Failed to send game start to some players. removing them")
-                
+
             t = Thread(target = handleConnection, args=(connectionList[conn], conn))
             t.start()
             clientThreads.append(t)
         gameStarted = True
     for i in dropList:
         removeConnection(i)
-        
+
     return
 
 def updatePositions(playerInputs, positions):
@@ -178,19 +182,19 @@ def updatePositions(playerInputs, positions):
             if playerInputs[player][0]:
                 #N
                 positions[player][1] -= 1
-                positions[player][1] %= 10
+                positions[player][1] %= GRID_HEIGHT
             elif playerInputs[player][1]:
                 #S
                 positions[player][1] += 1
-                positions[player][1] %= 10
+                positions[player][1] %= GRID_HEIGHT
             elif playerInputs[player][2]:
                 #W
                 positions[player][0] -= 1
-                positions[player][0] %= 10
+                positions[player][0] %= GRID_WIDTH
             elif playerInputs[player][3]:
                 #E
                 positions[player][0] += 1
-                positions[player][0] %= 10
+                positions[player][0] %= GRID_WIDTH
 
 def updateGameState():
     updatePositions(playerInputs, gameState['pos'])
@@ -201,8 +205,8 @@ def main():
     while True:
         #start game
         getInitPlayers()
-        
-        
+
+
         #run game logic
         while gameStarted:
             #send new game state
