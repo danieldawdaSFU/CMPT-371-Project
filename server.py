@@ -25,15 +25,15 @@ playerInputs = [[False, False, False, False],
                 [False, False, False, False],
                 [False, False, False, False]]
 
-# 16x16 grid (each tile is 50 pixels)
-GRID_WIDTH = GRID_HEIGHT = 16
+# 10x10 grid (each tile is 80 pixels)
+GRID_WIDTH = GRID_HEIGHT = 10
 
 # itinital game state dict (X/Y)
 # players start at the center of the grid
-gameState = {'pos': [[7, 7],
-                     [8, 7],
-                     [7, 8],
-                     [8, 8]]}
+gameState = {'pos': [[4, 4],
+                     [5, 4],
+                     [4, 5],
+                     [5, 5]]}
 
 ### end Mutex locked variables
 

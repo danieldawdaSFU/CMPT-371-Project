@@ -17,24 +17,25 @@ playerNumber = -1
 gameStarted = False
 
 #init player positions
-positions = [[350, 350],
-             [400, 350],
-             [350, 400],
-             [400, 400]]
+# players start at the center of the window
+positions = [[4, 4],
+             [5, 4],
+             [4, 5],
+             [5, 5]]
 ### end Mutex locked variables
 
 clientInputs = [False, False, False, False]
 
-#50x50 pixel rectangle
-player_height = player_width = 50
+#80x80 pixel rectangle
+player_height = player_width = 80
 
 # init pygame
 pygame.init()
 
 # 800x800 pixel game map
 MAP_WIDTH = MAP_HEIGHT = 800
-# 50x50 pixel tile size
-TILE_SIZE = 50
+# 80x80 pixel tile size
+TILE_SIZE = 80
 
 # map bg - black
 BG_COLOR = (0, 0, 0)
@@ -43,14 +44,19 @@ GRID_COLOR = (128, 128, 128)
 
 PLAYER_COLORS = [
     # red
-    (255, 0, 0),
+    (220, 0, 0),
     # green
-    (0, 255, 0),
+    (0, 220, 0),
     # blue
-    (0, 0, 255),
+    (0, 0, 220),
     # cyan
-    (0, 255, 255)
+    (0, 220, 220)
 ]
+
+# init text font
+pygame.font.init()
+font = pygame.font.SysFont("Comic Sans MS", 24)
+font.set_bold(True)
 
 win = pygame.display.set_mode((MAP_WIDTH, MAP_HEIGHT))
 pygame.display.set_caption("Game")
@@ -189,7 +195,16 @@ def updateDisplay():
         try:
             with mutex:
                 x, y = positions[i]
+
+            # Draw the player's rect
             pygame.draw.rect(win, PLAYER_COLORS[i], (x*TILE_SIZE, y*TILE_SIZE, player_width, player_height))
+            # Render the player's ID as a text rect
+            playerID = font.render((f"P{i + 1}"), True, (255, 255, 255))
+            # Center the text rect in the player's rect
+            playerID_rect = playerID.get_rect(center=(x*TILE_SIZE + TILE_SIZE // 2, y*TILE_SIZE + TILE_SIZE // 2))
+            # Draw the player's ID onto the game window
+            win.blit(playerID, playerID_rect)
+
         except Exception as e:
             print(f"Error drawing player {i}: {e}")
 
