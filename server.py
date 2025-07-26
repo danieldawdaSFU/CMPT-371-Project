@@ -2,6 +2,7 @@ import socket
 from threading import Thread
 from threading import Lock
 import time
+import random
 
 sock = socket.socket(
     socket.AF_INET,
@@ -9,6 +10,9 @@ sock = socket.socket(
 
 #Number of bytes for a message header. ex "PLYRMOVE"
 MESSAGE_HEADER_LENGTH = 8
+
+# 10x10 grid (each tile is 80 pixels)
+GRID_WIDTH = GRID_HEIGHT = 10
 
 #server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
 sock.bind(("localhost", 53333))
@@ -25,15 +29,23 @@ playerInputs = [[False, False, False, False],
                 [False, False, False, False],
                 [False, False, False, False]]
 
-# 10x10 grid (each tile is 80 pixels)
-GRID_WIDTH = GRID_HEIGHT = 10
-
-# itinital game state dict (X/Y)
+# initial game state dict
+# pos: [[x, y]]
+# walls: [[x, y]]
+# goals: [[x, y, player number, time remaining (seconds)]]
 # players start at the center of the grid
 gameState = {'pos': [[4, 4],
                      [5, 4],
                      [4, 5],
-                     [5, 5]]}
+                     [5, 5]],
+             'walls': [[0, 0],  # just put walls in 4 corners for now, make map later
+                       [0, 9],
+                       [9, 0],
+                       [9, 9]],
+             'goals': []}
+
+# Since the game updates every 0.5 sec, and the timers need to update every 1 sec, this variable flips every update
+updateGoalTimers = False
 
 ### end Mutex locked variables
 
@@ -213,8 +225,46 @@ def checkForNoCollision(x, y):
         return True
     return False
 
+# TODO: function description
+def generateGoals(goalsPerPlayer, timeLimit):
+    takenTiles = [wall for wall in gameState['walls']]
+    takenTiles.extend(gameState['goals'])
+
+    for _ in range(goalsPerPlayer):
+        for playerNum in range(len(connectionList)):
+            # Arbitrarily limit the amount of goals that can be on the board to prevent infinite loop here
+            if len(takenTiles) < GRID_WIDTH * GRID_HEIGHT - (GRID_WIDTH + GRID_HEIGHT):
+                while True:
+                    x = random.randint(0, GRID_WIDTH - 1)
+                    y = random.randint(0, GRID_HEIGHT - 1)
+                    if [x, y] not in takenTiles:
+                        takenTiles.append([x, y])
+                        gameState['goals'].append([x, y, playerNum, timeLimit])
+                        break            
+
+# TODO: function description
+# TODO: could have varying degrees of difficulty which changes the time limit of goals and how much are generated
+def updateGoalStates():
+    global updateGoalTimers
+
+    with mutex:
+        if (len(gameState['goals']) <= len(connectionList)):
+            generateGoals(1, 20)
+
+        if (updateGoalTimers):
+            print("update goal timers")
+            for goal in gameState['goals']:
+                goal[3] -= 1
+                if goal[3] == 0:
+                    print("End game")
+                    # TODO: end game here
+            updateGoalTimers = False
+        else:
+            updateGoalTimers = True
+
 def updateGameState():
     updatePositions(playerInputs, gameState['pos'])
+    updateGoalStates()
 
 def main():
     #loop so we can start new games afterwards
