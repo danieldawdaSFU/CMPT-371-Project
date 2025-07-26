@@ -179,22 +179,39 @@ def getInitPlayers():
 def updatePositions(playerInputs, positions):
     with mutex:
         for player in range(len(positions)):
+            #N
             if playerInputs[player][0]:
-                #N
-                positions[player][1] -= 1
-                positions[player][1] %= GRID_HEIGHT
+                newY = positions[player][1] - 1
+                newY %= GRID_HEIGHT
+                if checkForNoCollision(positions[player][0], newY):
+                    positions[player][1] = newY
+            
+            #S
             elif playerInputs[player][1]:
-                #S
-                positions[player][1] += 1
-                positions[player][1] %= GRID_HEIGHT
+                newY = positions[player][1] + 1
+                newY %= GRID_HEIGHT
+                if checkForNoCollision(positions[player][0], newY):
+                    positions[player][1] = newY
+            
+            #W
             elif playerInputs[player][2]:
-                #W
-                positions[player][0] -= 1
-                positions[player][0] %= GRID_WIDTH
+                newX = positions[player][0] - 1
+                newX %= GRID_HEIGHT
+                if checkForNoCollision(newX, positions[player][1]):
+                    positions[player][0] = newX
+
+            #E
             elif playerInputs[player][3]:
-                #E
-                positions[player][0] += 1
-                positions[player][0] %= GRID_WIDTH
+                newX = positions[player][0] + 1
+                newX %= GRID_HEIGHT
+                if checkForNoCollision(newX, positions[player][1]):
+                    positions[player][0] = newX
+
+# Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
+def checkForNoCollision(x, y):
+    if not [x, y] in gameState['pos']:
+        return True
+    return False
 
 def updateGameState():
     updatePositions(playerInputs, gameState['pos'])
