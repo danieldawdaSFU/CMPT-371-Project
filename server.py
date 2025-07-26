@@ -252,7 +252,6 @@ def updateGoalStates():
             generateGoals(1, 20)
 
         if (updateGoalTimers):
-            print("update goal timers")
             for goal in gameState['goals']:
                 goal[3] -= 1
                 if goal[3] == 0:
