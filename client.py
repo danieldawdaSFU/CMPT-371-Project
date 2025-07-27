@@ -22,6 +22,10 @@ positions = [[4, 4],
              [5, 4],
              [4, 5],
              [5, 5]]
+# list of wall positions
+walls = [[0, 0], [0, 9], [9, 0], [9, 9]] # TODO: make an actual map
+# list of goals positions, who they belong to, and how time is left on it
+goals = []
 ### end Mutex locked variables
 
 clientInputs = [False, False, False, False]
@@ -36,6 +40,8 @@ pygame.init()
 MAP_WIDTH = MAP_HEIGHT = 800
 # 80x80 pixel tile size
 TILE_SIZE = 80
+# 10x10 grid size
+GRID_WIDTH = GRID_HEIGHT = 10
 
 # map bg - black
 BG_COLOR = (0, 0, 0)
@@ -87,7 +93,7 @@ def connect(address, port):
             #updated player number
 
             #receive 1 byte for player number
-            playerNumber = sock.recv(1).decode()
+            playerNumber = int(sock.recv(1))
 
             #send player number back as confirmation that we are active
             sock.send(data)
@@ -96,11 +102,38 @@ def connect(address, port):
 
     return playerNumber
 
+# Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
+def checkForNoCollision(x, y):
+    if not [x, y] in positions:
+        if not [x, y] in walls:
+            return True
+    return False
+
+# Sends packet telling server that player is moving either to N, E, S, or W direction 1 tile, if there's no collision (ex. with players or walls)
 def send_move(dir, down):
+    newPos = [coord for coord in positions[playerNumber - 1]]
+
+    # Calculate the coords of where the player is moving to
+    if down:
+        if dir == "N":
+            newPos[1] -= 1
+            newPos[1] %= GRID_HEIGHT
+        elif dir == "S":
+            newPos[1] += 1
+            newPos[1] %= GRID_HEIGHT
+        elif dir == "W":
+            newPos[0] -= 1
+            newPos[0] %= GRID_WIDTH
+        elif dir == "E":
+            newPos[0] += 1
+            newPos[0] %= GRID_WIDTH
+    
     # construct message ("PLYRMOVE <N/S/E/W direction> + <1/0>")
     if down:
-        msg = "PLYRMOVE" + dir + "1"
-        sock.send(msg.encode())
+        # Check if there's something in the tile the player is moving to
+        if checkForNoCollision(newPos[0], newPos[1]):
+            msg = "PLYRMOVE" + dir + "1"
+            sock.send(msg.encode())
     else:
         msg = "PLYRMOVE" + dir + "0"
         sock.send(msg.encode())
@@ -187,6 +220,27 @@ def recvGameUpdates():
                 with mutex:
                     positions[i][0] = x_pos
                     positions[i][1] = y_pos
+        elif data == "GOALUPDT":
+            with mutex:
+                goals = []
+
+                # receive goal positions and info
+                # Format is ("GOALUPDTNGXXYYPNTLXXYYPNTL...")
+                # where NG = number of goals, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+                numOfGoals = int(sock.recv(2))
+                for i in range(numOfGoals):
+                    x_pos = int(sock.recv(2))
+                    y_pos = int(sock.recv(2))
+                    player_num = int(sock.recv(2))
+                    time_left = int(sock.recv(2))
+
+                    goals.append([x_pos, y_pos, player_num, time_left])
+        elif data == "GAMEWINN":
+            print("Game won")
+            # TODO: winning UI
+        elif data == "GAMEOVER":
+            print("Game lost")
+            # TODO: losing UI
         updateDisplay()
 
 def draw_grid():
@@ -202,6 +256,8 @@ def draw_grid():
 
 def updateDisplay():
     draw_grid()
+
+    # TODO: draw goals
 
     # draw all players
     for i in range(4):
