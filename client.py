@@ -298,6 +298,10 @@ def recvGameUpdates():
                 # where NG = number of goals, CS = current score (number of goals reached), XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
                 numGoals = int(sock.recv(2))
                 currentScore = int(sock.recv(2))
+
+                # clear the goals array to get rid of tiles that were already reached
+                goals.clear()
+
                 for i in range(numGoals):
                     x_pos = int(sock.recv(2))
                     y_pos = int(sock.recv(2))
