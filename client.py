@@ -51,10 +51,11 @@ walls = [[0, 2],
 # list of goals positions, who they belong to, and how time is left on it
 goals = []
 currentScore = 0
+currentLevel = -1
 ### end Mutex locked variables
 
-# may change this
-maxScore = 20
+maxScore = 36
+totalLevels = 3
 
 clientInputs = [False, False, False, False]
 
@@ -267,7 +268,7 @@ def inputHandler():
                     clientInputs[3] = False
 
 def recvGameUpdates():
-    global goals, currentScore
+    global goals, currentScore, currentLevel
     # constantly check for game updates
     while True:
         # data will be "POSXXXYYYXXXYYYXXXYYYXXXYYY"
@@ -298,9 +299,10 @@ def recvGameUpdates():
 
                 # receive goal positions and info
                 # Format is ("GOALUPDTNGCSXXYYPNTLXXYYPNTL...")
-                # where NG = number of goals, CS = current score (number of goals reached), XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+                # where NG = number of goals, CS = current score (number of goals reached), CL = current level, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
                 numGoals = int(sock.recv(2))
                 currentScore = int(sock.recv(2))
+                currentLevel = int(sock.recv(2))
 
                 # clear the goals array to get rid of tiles that were already reached
                 goals.clear()
@@ -318,7 +320,7 @@ def recvGameUpdates():
             break
         elif data == "GAMEOVER":
             print("Game Lost")
-            draw_game_over()
+            #draw_game_over()
             break
 
         updateDisplay()
@@ -352,7 +354,7 @@ def draw_goal_tiles():
         win.blit(time_text, time_rect)
 
 def draw_sidebar():
-    global currentScore, playerNumber
+    global currentScore, playerNumber, totalLevels
 
     # draw the sidebar background
     sidebar_rect = pygame.Rect(MAP_WIDTH, 0, SIDEBAR_WIDTH, MAP_HEIGHT)
@@ -362,8 +364,12 @@ def draw_sidebar():
     score_rect = score_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 100))
     win.blit(score_text, score_rect)
 
+    level_text = font.render((f"Level: {currentLevel} / {totalLevels}"), True, TEXT_COLOR)
+    level_rect = level_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 200))
+    win.blit(level_text, level_rect)
+
     playerID_text = font.render((f"Player Number: {playerNumber}"), True, TEXT_COLOR)
-    playerID_rect = playerID_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 200))
+    playerID_rect = playerID_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 300))
     win.blit(playerID_text, playerID_rect)
 
 def draw_players():

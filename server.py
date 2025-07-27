@@ -14,9 +14,7 @@ MESSAGE_HEADER_LENGTH = 8
 # 10x10 grid (each tile is 80 pixels)
 GRID_WIDTH = GRID_HEIGHT = 10
 
-currentScore = 0
-# may change this
-maxScore = 20
+maxScore = 36
 
 #server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
 sock.bind(("localhost", 53333))
@@ -26,6 +24,9 @@ mutex = Lock() #general mutex lock for player state changes (new inputs, changin
 connectionList = []
 clientThreads = []
 gameStarted = False
+currentScore = 0
+prevLevel = -1
+currentLevel = -1
 
 #North, West, South, East movement vectors for each player
 playerInputs = [[False, False, False, False],
@@ -137,9 +138,9 @@ def broadcastGameUpdates():
                         str(gameState["pos"][3][1]).zfill(2))
         broadcastToClients(playerUpdateData)
 
-        # format data ("GOALUPDTNGCSXXYYPNTLXXYYPNTL...")
-        # where NG = number of goals, CS = current score (number of goals reached), XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
-        goalUpdateData = "GOALUPDT" + str(len(gameState['goals'])).zfill(2) + str(currentScore).zfill(2)
+        # format data ("GOALUPDTNGCSCLXXYYPNTLXXYYPNTL...")
+        # where NG = number of goals, CS = current score (number of goals reached), CL = current level, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+        goalUpdateData = "GOALUPDT" + str(len(gameState['goals'])).zfill(2) + str(currentScore).zfill(2) + str(currentLevel).zfill(2)
         for goal in gameState['goals']:
             goalUpdateData += (str(goal[0]).zfill(2)+
                 str(goal[1]).zfill(2)+
@@ -193,7 +194,7 @@ def getInitPlayers():
             # get new client
             # buffer as many as we need
             sock.listen(4-len(connectionsList))
-            connection, address = sock.accept()
+            connection, _ = sock.accept()
             print("New Connection")
 
             #update list
@@ -292,8 +293,25 @@ def checkForGoal(x, y, playerNumber):
         gameStarted = False
         broadcastToClients("GAMEWINN")
 
+# Returns the number of goals per player and time limit on goal tiles, based on the current score
+# Level 1: 2 goals per player, 20s time limit. Once all these goals are reached (currentScore = 8 points), next level
+# Level 2: 3 goals per player, 15s time limit. Once all these goals are reached (currentScore = 20 points), next level
+# Level 3: 4 goals per player, 10s time limit. Once all these goals are reached (currentScore = 36 points), game win
+def getDifficulty():
+    global currentScore
+
+    if currentScore >= 20:
+        # return the level, goals per player, and time limit
+        return 3, 4, 10
+    elif currentScore >= 8:
+        return 2, 3, 15
+    else:
+        return 1, 2, 60
+
 # Creates the given number of goals for each player which start with the given time limit
-def generateGoals(goalsPerPlayer, timeLimit):
+def generateGoals():
+    _, goalsPerPlayer, timeLimit = getDifficulty()
+
     takenTiles = [wall for wall in gameState['walls']]
     takenTiles.extend(gameState['goals'])
     takenTiles.extend(gameState['pos'])
@@ -311,18 +329,23 @@ def generateGoals(goalsPerPlayer, timeLimit):
                         break
 
 # Decreases the timers on all existing goals, and creates new goals if there currently aren't enough on the board
-# TODO: could have varying degrees of difficulty which changes the time limit of goals and how much are generated
 def updateGoalStates():
-    global updateGoalTimers, gameStarted
+    global updateGoalTimers, gameStarted, currentScore, prevLevel, currentLevel
 
     with mutex:
-        if (len(gameState['goals']) <= len(connectionList)):
-            generateGoals(1, 20)
+        # Determine current level/round
+        currentLevel, _, _ = getDifficulty()
+
+        # only generate goals when the level changes
+        if currentLevel != prevLevel:
+            gameState['goals'].clear()
+            generateGoals()
+            prevLevel = currentLevel
 
         if (updateGoalTimers):
             for goal in gameState['goals']:
                 goal[3] -= 1
-                if goal[3] == 0:
+                if goal[3] < 0:
                     print("Game Over")
                     gameStarted = False
                     broadcastToClients("GAMEOVER")
@@ -336,8 +359,13 @@ def updateGameState():
 
 def main():
     #loop so we can start new games afterwards
-    global gameStarted
+    global gameStarted, currentScore, prevLevel
     while True:
+        # reset values for new game
+        prevLevel = -1
+        currentScore = 0
+        gameState['goals'].clear()
+
         #start game
         getInitPlayers()
 
