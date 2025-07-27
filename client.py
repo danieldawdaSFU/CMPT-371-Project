@@ -22,6 +22,10 @@ positions = [[4, 4],
              [5, 4],
              [4, 5],
              [5, 5]]
+# list of wall positions
+walls = [[0, 0], [0, 9], [9, 0], [9, 9]] # TODO: make an actual map
+# list of goals positions, who they belong to, and how time is left on it
+goals = []
 ### end Mutex locked variables
 
 clientInputs = [False, False, False, False]
@@ -83,6 +87,14 @@ def connect(address, port):
 
     return playerNumber
 
+# Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
+def checkForNoCollision(x, y):
+    if not [x, y] in positions:
+        if not [x, y] in walls:
+            return True
+    return False
+
+# TODO: check for collision on players or walls before sending move packet
 def send_move(dir, down):
     # construct message ("PLYRMOVE <N/S/E/W direction> + <1/0>")
     if down:
@@ -174,6 +186,21 @@ def recvGameUpdates():
                 with mutex:
                     positions[i][0] = x_pos
                     positions[i][1] = y_pos
+        elif data == "GOALUPDT":
+            with mutex:
+                goals = []
+
+                # receive goal positions and info
+                # Format is ("GOALUPDTNGXXYYPNTLXXYYPNTL...")
+                # where NG = number of goals, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+                numOfGoals = int(sock.recv(2))
+                for i in range(numOfGoals):
+                    x_pos = int(sock.recv(2))
+                    y_pos = int(sock.recv(2))
+                    player_num = int(sock.recv(2))
+                    time_left = int(sock.recv(2))
+                    
+                    goals.append([x_pos, y_pos, player_num, time_left])
         updateDisplay()
 
 def draw_grid(window):
@@ -189,6 +216,8 @@ def draw_grid(window):
 
 def updateDisplay():
     draw_grid(win)
+
+    # TODO: draw goals
 
     # draw all players
     for i in range(4):

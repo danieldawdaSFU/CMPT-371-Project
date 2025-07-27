@@ -31,17 +31,12 @@ playerInputs = [[False, False, False, False],
 
 # initial game state dict
 # pos: [[x, y]]
-# walls: [[x, y]]
 # goals: [[x, y, player number, time remaining (seconds)]]
 # players start at the center of the grid
 gameState = {'pos': [[4, 4],
                      [5, 4],
                      [4, 5],
                      [5, 5]],
-             'walls': [[0, 0],  # just put walls in 4 corners for now, make map later
-                       [0, 9],
-                       [9, 0],
-                       [9, 9]],
              'goals': []}
 
 # Since the game updates every 0.5 sec, and the timers need to update every 1 sec, this variable flips every update
@@ -74,6 +69,8 @@ def handleConnection(connection, index):
             #general receive logic
             if connectionList[index] == None:
                 #error, block thread.
+
+                gameState['goals'].remove
                 while 1:
                     pass
 
@@ -101,7 +98,8 @@ def handleConnection(connection, index):
 #function to send the current game state to all players
 def broadcastGameUpdates():
     with mutex:
-        data = ("PLYRUPDT"+str(gameState["pos"][0][0]).zfill(2)+
+        # format data ("PLYRUPDTXXYYXXYYXXYYXXYY")
+        playerUpdateData = ("PLYRUPDT"+str(gameState["pos"][0][0]).zfill(2)+
                         str(gameState["pos"][0][1]).zfill(2)+
                         str(gameState["pos"][1][0]).zfill(2)+
                         str(gameState["pos"][1][1]).zfill(2)+
@@ -109,8 +107,20 @@ def broadcastGameUpdates():
                         str(gameState["pos"][2][1]).zfill(2)+
                         str(gameState["pos"][3][0]).zfill(2)+
                         str(gameState["pos"][3][1]).zfill(2))
+        broadcastToClients(playerUpdateData)
+
+        # format data ("GOALUPDTNGXXYYPNTLXXYYPNTL...")
+        # where NG = number of goals, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+        goalUpdateData = "GOALUPDT" + str(len(gameState['goals'])).zfill(2)
+        for goal in gameState['goals']:
+            goalUpdateData += (str(goal[0]).zfill(2)+
+                str(goal[1]).zfill(2)+
+                str(goal[2]).zfill(2)+
+                str(goal[3]).zfill(2))
+        broadcastToClients(goalUpdateData)
+
+def broadcastToClients(data):
     for conn in range(len(connectionList)):
-        # format data ("PLYRUPDTXXYYXXYYXXYYXXYY")
         try:
             if connectionList[conn] != None:
                 connectionList[conn].send(data.encode())
