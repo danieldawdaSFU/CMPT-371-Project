@@ -199,7 +199,7 @@ def recvGameUpdates():
                     y_pos = int(sock.recv(2))
                     player_num = int(sock.recv(2))
                     time_left = int(sock.recv(2))
-                    
+
                     goals.append([x_pos, y_pos, player_num, time_left])
         updateDisplay()
 

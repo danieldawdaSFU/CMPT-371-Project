@@ -14,6 +14,10 @@ MESSAGE_HEADER_LENGTH = 8
 # 10x10 grid (each tile is 80 pixels)
 GRID_WIDTH = GRID_HEIGHT = 10
 
+currentScore = 0
+# may change this
+maxScore = 20
+
 #server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
 sock.bind(("localhost", 53333))
 
@@ -37,6 +41,10 @@ gameState = {'pos': [[4, 4],
                      [5, 4],
                      [4, 5],
                      [5, 5]],
+             'walls': [[0, 0],
+                       [0, 9],
+                       [9, 0],
+                       [9, 9]],
              'goals': []}
 
 # Since the game updates every 0.5 sec, and the timers need to update every 1 sec, this variable flips every update
@@ -207,20 +215,24 @@ def updatePositions(playerInputs, positions):
                 newY %= GRID_HEIGHT
                 if checkForNoCollision(positions[player][0], newY):
                     positions[player][1] = newY
-            
+                    # check if the player moved onto a goal tile
+                    checkForGoal(positions[player][0], positions[player][1], player)
+
             #S
             elif playerInputs[player][1]:
                 newY = positions[player][1] + 1
                 newY %= GRID_HEIGHT
                 if checkForNoCollision(positions[player][0], newY):
                     positions[player][1] = newY
-            
+                    checkForGoal(positions[player][0], positions[player][1], player)
+
             #W
             elif playerInputs[player][2]:
                 newX = positions[player][0] - 1
                 newX %= GRID_HEIGHT
                 if checkForNoCollision(newX, positions[player][1]):
                     positions[player][0] = newX
+                    checkForGoal(positions[player][0], positions[player][1], player)
 
             #E
             elif playerInputs[player][3]:
@@ -228,12 +240,38 @@ def updatePositions(playerInputs, positions):
                 newX %= GRID_HEIGHT
                 if checkForNoCollision(newX, positions[player][1]):
                     positions[player][0] = newX
+                    checkForGoal(positions[player][0], positions[player][1], player)
 
 # Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
 def checkForNoCollision(x, y):
     if not [x, y] in gameState['pos']:
-        return True
+        if not [x, y] in gameState['walls']:
+            return True
     return False
+
+# check if the player moved onto a goal tile
+def checkForGoal(x, y, playerNumber):
+    global currentScore, gameStarted
+
+    toRemove = []
+    # if the player did move onto a goal, add the goal tile to a list so it can be removed later
+    for goal in gameState['goals']:
+        if goal[0] == x and goal[1] == y and goal[2] == playerNumber:
+            toRemove.append(goal)
+
+    # remove all the goal tiles that a player moved onto
+    for goal in toRemove:
+        # increment the current score
+        currentScore += 1
+        gameState['goals'].remove(goal)
+        print(f"Score: {currentScore}/{maxScore}")
+
+        # if current score is equal to max score, then the players won the game
+        if currentScore >= maxScore:
+            # TODO: double check if this is right
+            print("Game Win")
+            gameStarted = False
+            broadcastToClients("GAMEWINN")
 
 # TODO: function description
 def generateGoals(goalsPerPlayer, timeLimit):
@@ -250,12 +288,12 @@ def generateGoals(goalsPerPlayer, timeLimit):
                     if [x, y] not in takenTiles:
                         takenTiles.append([x, y])
                         gameState['goals'].append([x, y, playerNum, timeLimit])
-                        break            
+                        break
 
 # TODO: function description
 # TODO: could have varying degrees of difficulty which changes the time limit of goals and how much are generated
 def updateGoalStates():
-    global updateGoalTimers
+    global updateGoalTimers, gameStarted
 
     with mutex:
         if (len(gameState['goals']) <= len(connectionList)):
@@ -265,8 +303,10 @@ def updateGoalStates():
             for goal in gameState['goals']:
                 goal[3] -= 1
                 if goal[3] == 0:
-                    print("End game")
-                    # TODO: end game here
+                    print("Game Over")
+                    # TODO: double check if this is right
+                    gameStarted = False
+                    broadcastToClients("GAMEOVER")
             updateGoalTimers = False
         else:
             updateGoalTimers = True
