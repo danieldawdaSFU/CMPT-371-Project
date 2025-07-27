@@ -41,10 +41,30 @@ gameState = {'pos': [[4, 4],
                      [5, 4],
                      [4, 5],
                      [5, 5]],
-             'walls': [[0, 0],
-                       [0, 9],
+             'walls': [[0, 2],
+                       [1, 2],
+                       [1, 5],
+                       [1, 6],
+                       [1, 8],
+                       [2, 1],
+                       [2, 4],
+                       [2, 9],
+                       [3, 1],
+                       [3, 7],
+                       [4, 3],
+                       [4, 7],
+                       [5, 2],
+                       [5, 6],
+                       [5, 8],
+                       [6, 8],
+                       [7, 5],
+                       [7, 6],
+                       [8, 0],
+                       [8, 3],
+                       [8, 7],
                        [9, 0],
-                       [9, 9]],
+                       [9, 1],
+                       [9, 6]],
              'goals': []}
 
 # Since the game updates every 0.5 sec, and the timers need to update every 1 sec, this variable flips every update
@@ -117,9 +137,9 @@ def broadcastGameUpdates():
                         str(gameState["pos"][3][1]).zfill(2))
         broadcastToClients(playerUpdateData)
 
-        # format data ("GOALUPDTNGXXYYPNTLXXYYPNTL...")
-        # where NG = number of goals, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
-        goalUpdateData = "GOALUPDT" + str(len(gameState['goals'])).zfill(2)
+        # format data ("GOALUPDTNGCSXXYYPNTLXXYYPNTL...")
+        # where NG = number of goals, CS = current score (number of goals reached), XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+        goalUpdateData = "GOALUPDT" + str(len(gameState['goals'])).zfill(2) + str(currentScore).zfill(2)
         for goal in gameState['goals']:
             goalUpdateData += (str(goal[0]).zfill(2)+
                 str(goal[1]).zfill(2)+
@@ -261,21 +281,22 @@ def checkForGoal(x, y, playerNumber):
 
     # remove all the goal tiles that a player moved onto
     for goal in toRemove:
+        gameState['goals'].remove(goal)
         # increment the current score
         currentScore += 1
-        gameState['goals'].remove(goal)
         print(f"Score: {currentScore}/{maxScore}")
 
-        # if current score is equal to max score, then the players won the game
-        if currentScore >= maxScore:
-            print("Game Win")
-            gameStarted = False
-            broadcastToClients("GAMEWINN")
+    # if current score is equal to max score, then the players won the game
+    if currentScore >= maxScore:
+        print("Game Win")
+        gameStarted = False
+        broadcastToClients("GAMEWINN")
 
 # Creates the given number of goals for each player which start with the given time limit
 def generateGoals(goalsPerPlayer, timeLimit):
     takenTiles = [wall for wall in gameState['walls']]
     takenTiles.extend(gameState['goals'])
+    takenTiles.extend(gameState['pos'])
 
     for _ in range(goalsPerPlayer):
         for playerNum in range(len(connectionList)):

@@ -2,6 +2,7 @@ import socket
 from threading import Thread
 from threading import Lock
 import pygame
+import textwrap
 
 sock = socket.socket(
     socket.AF_INET,
@@ -23,10 +24,37 @@ positions = [[4, 4],
              [4, 5],
              [5, 5]]
 # list of wall positions
-walls = [[0, 0], [0, 9], [9, 0], [9, 9]] # TODO: make an actual map
+walls = [[0, 2],
+         [1, 2],
+         [1, 5],
+         [1, 6],
+         [1, 8],
+         [2, 1],
+         [2, 4],
+         [2, 9],
+         [3, 1],
+         [3, 7],
+         [4, 3],
+         [4, 7],
+         [5, 2],
+         [5, 6],
+         [5, 8],
+         [6, 8],
+         [7, 5],
+         [7, 6],
+         [8, 0],
+         [8, 3],
+         [8, 7],
+         [9, 0],
+         [9, 1],
+         [9, 6]]
 # list of goals positions, who they belong to, and how time is left on it
 goals = []
+currentScore = 0
 ### end Mutex locked variables
+
+# may change this
+maxScore = 20
 
 clientInputs = [False, False, False, False]
 
@@ -38,6 +66,8 @@ pygame.init()
 
 # 800x800 pixel game map
 MAP_WIDTH = MAP_HEIGHT = 800
+# 300 pixel wide sidebar
+SIDEBAR_WIDTH = 300
 # 80x80 pixel tile size
 TILE_SIZE = 80
 # 10x10 grid size
@@ -47,6 +77,16 @@ GRID_WIDTH = GRID_HEIGHT = 10
 BG_COLOR = (0, 0, 0)
 # grid line color - gray
 GRID_COLOR = (128, 128, 128)
+# wall tile color - yellow
+WALL_COLOR = (220, 220, 0)
+# diagonal line color - black
+DIAG_LINE_COLOR = (0, 0, 0)
+# text color - white
+TEXT_COLOR = (240, 240, 240)
+# win text color - green
+WIN_COLOR = (0, 255, 0)
+# lose text color - red
+LOSE_COLOR = (255, 0, 0)
 
 PLAYER_COLORS = [
     # red
@@ -64,15 +104,45 @@ pygame.font.init()
 font = pygame.font.SysFont("Comic Sans MS", 24)
 font.set_bold(True)
 
-win = pygame.display.set_mode((MAP_WIDTH, MAP_HEIGHT))
+win = pygame.display.set_mode((MAP_WIDTH + SIDEBAR_WIDTH, MAP_HEIGHT))
 pygame.display.set_caption("Game")
 
 def draw_waiting_screen():
     win.fill(BG_COLOR)
 
-    waiting_text = font.render("Waiting for players...", True, (255, 255, 255))
-    waiting_rect = waiting_text.get_rect(center=(MAP_WIDTH // 2, MAP_HEIGHT // 2 - 60))
+    waiting_text = font.render("Waiting for players...", True, TEXT_COLOR)
+    waiting_rect = waiting_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(waiting_text, waiting_rect)
+
+    pygame.display.update()
+
+def draw_game_win():
+    global currentScore
+
+    win.fill(BG_COLOR)
+
+    win_text = font.render("You Win!", True, WIN_COLOR)
+    win_rect = win_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
+    win.blit(win_text, win_rect)
+
+    score_text = font.render((f"Your team's score: {currentScore} / 20"), True, TEXT_COLOR)
+    score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
+    win.blit(score_text, score_rect)
+
+    pygame.display.update()
+
+def draw_game_over():
+    global currentScore
+
+    win.fill(BG_COLOR)
+
+    lose_text = font.render("You Lose!", True, LOSE_COLOR)
+    lose_rect = lose_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
+    win.blit(lose_text, lose_rect)
+
+    score_text = font.render((f"Your team's score: {currentScore} / 20"), True, TEXT_COLOR)
+    score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
+    win.blit(score_text, score_rect)
 
     pygame.display.update()
 
@@ -98,7 +168,7 @@ def connect(address, port):
             #send player number back as confirmation that we are active
             sock.send(data)
 
-            print(f"You are player {int(playerNumber) + 1}.")
+            print(f"You are player {int(playerNumber)}.")
 
     return playerNumber
 
@@ -127,7 +197,7 @@ def send_move(dir, down):
         elif dir == "E":
             newPos[0] += 1
             newPos[0] %= GRID_WIDTH
-    
+
     # construct message ("PLYRMOVE <N/S/E/W direction> + <1/0>")
     if down:
         # Check if there's something in the tile the player is moving to
@@ -197,6 +267,7 @@ def inputHandler():
                     clientInputs[3] = False
 
 def recvGameUpdates():
+    global goals, currentScore
     # constantly check for game updates
     while True:
         # data will be "POSXXXYYYXXXYYYXXXYYYXXXYYY"
@@ -204,7 +275,7 @@ def recvGameUpdates():
             data = sock.recv(MESSAGE_HEADER_LENGTH).decode()
         except:
             #Failed to get update. Dissconnect.
-            #todo
+            # TODO
             pass
         if data == "PLYRUPDT":
             #receive each players position
@@ -222,13 +293,12 @@ def recvGameUpdates():
                     positions[i][1] = y_pos
         elif data == "GOALUPDT":
             with mutex:
-                goals = []
-
                 # receive goal positions and info
-                # Format is ("GOALUPDTNGXXYYPNTLXXYYPNTL...")
-                # where NG = number of goals, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
-                numOfGoals = int(sock.recv(2))
-                for i in range(numOfGoals):
+                # Format is ("GOALUPDTNGCSXXYYPNTLXXYYPNTL...")
+                # where NG = number of goals, CS = current score (number of goals reached), XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
+                numGoals = int(sock.recv(2))
+                currentScore = int(sock.recv(2))
+                for i in range(numGoals):
                     x_pos = int(sock.recv(2))
                     y_pos = int(sock.recv(2))
                     player_num = int(sock.recv(2))
@@ -236,11 +306,14 @@ def recvGameUpdates():
 
                     goals.append([x_pos, y_pos, player_num, time_left])
         elif data == "GAMEWINN":
-            print("Game won")
-            # TODO: winning UI
+            print("Game Won")
+            draw_game_win()
+            break
         elif data == "GAMEOVER":
-            print("Game lost")
-            # TODO: losing UI
+            print("Game Lost")
+            draw_game_over()
+            break
+
         updateDisplay()
 
 def draw_grid():
@@ -254,10 +327,40 @@ def draw_grid():
     for y in range(0, MAP_HEIGHT, TILE_SIZE):
         pygame.draw.line(win, GRID_COLOR, (0, y), (MAP_WIDTH, y))
 
+def draw_walls():
+    for wall in walls:
+        pygame.draw.rect(win, WALL_COLOR, (wall[0] * TILE_SIZE, wall[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+        # draw a diagonal line from top-right to bot-left
+        pygame.draw.line(win, DIAG_LINE_COLOR, (wall[0] * TILE_SIZE + TILE_SIZE, wall[1] * TILE_SIZE), (wall[0] * TILE_SIZE, wall[1] * TILE_SIZE + TILE_SIZE), 5)
+        # draw a diagonal line from top-left to bot-right
+        pygame.draw.line(win, DIAG_LINE_COLOR, (wall[0] * TILE_SIZE, wall[1] * TILE_SIZE), (wall[0] * TILE_SIZE + TILE_SIZE, wall[1] * TILE_SIZE + TILE_SIZE), 5)
+
+def draw_goal_tiles():
+    for goal in goals:
+        pygame.draw.rect(win, PLAYER_COLORS[goal[2]], (goal[0] * TILE_SIZE, goal[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+
+        # Draw the countdown timer in the center of a goal tile
+        time_text = font.render(str(goal[3]), True, TEXT_COLOR)
+        time_rect = time_text.get_rect(center=(goal[0] * TILE_SIZE + TILE_SIZE // 2, goal[1] * TILE_SIZE + TILE_SIZE // 2))
+        win.blit(time_text, time_rect)
+
+def draw_sidebar():
+    global currentScore, playerNumber
+
+    # draw the sidebar background
+    sidebar_rect = pygame.Rect(MAP_WIDTH, 0, SIDEBAR_WIDTH, MAP_HEIGHT)
+    pygame.draw.rect(win, (40, 40, 40), sidebar_rect)
+
+    score_text = font.render((f"Team Score: {currentScore} / {maxScore}"), True, TEXT_COLOR)
+    score_rect = score_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 100))
+    win.blit(score_text, score_rect)
+
+    playerID_text = font.render((f"Player Number: {playerNumber}"), True, TEXT_COLOR)
+    playerID_rect = playerID_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 200))
+    win.blit(playerID_text, playerID_rect)
+
 def updateDisplay():
     draw_grid()
-
-    # TODO: draw goals
 
     # draw all players
     for i in range(4):
@@ -266,16 +369,22 @@ def updateDisplay():
                 x, y = positions[i]
 
             # Draw the player's rect
-            pygame.draw.rect(win, PLAYER_COLORS[i], (x*TILE_SIZE, y*TILE_SIZE, player_width, player_height))
+            pygame.draw.rect(win, PLAYER_COLORS[i], (x * TILE_SIZE, y * TILE_SIZE, player_width, player_height))
+            # Draw a border around the player's tile
+            pygame.draw.rect(win, TEXT_COLOR, (x * TILE_SIZE, y * TILE_SIZE, player_width, player_height), 2)
             # Render the player's ID as a text rect
-            playerID_text = font.render((f"P{i + 1}"), True, (255, 255, 255))
+            playerID_text = font.render((f"P{i + 1}"), True, TEXT_COLOR)
             # Center the text rect in the player's rect
-            playerID_rect = playerID_text.get_rect(center=(x*TILE_SIZE + TILE_SIZE // 2, y*TILE_SIZE + TILE_SIZE // 2))
+            playerID_rect = playerID_text.get_rect(center=(x * TILE_SIZE + TILE_SIZE // 2, y * TILE_SIZE + TILE_SIZE // 2))
             # Draw the player's ID onto the game window
             win.blit(playerID_text, playerID_rect)
 
         except Exception as e:
             print(f"Error drawing player {i}: {e}")
+
+    draw_goal_tiles()
+    draw_walls()
+    draw_sidebar()
 
     pygame.display.update()
 
