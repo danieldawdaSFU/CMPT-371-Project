@@ -112,9 +112,9 @@ def getInitPlayers():
     #Start with no connections. Clients can reconnect on their own after a game
     connectionsList = []
     while True:
-        #while true since we cannot check the len of connectionsList without mutex
+        # while true since we cannot check the len of connectionsList without mutex
         if len(connectionsList) == 4:
-            #send everyone their player number. If it fails then they left, and we try again
+            # send everyone their player number. If it fails then they left, and we try again
             index = 1
             toRemove = []
             for connection in connectionsList:
@@ -136,12 +136,12 @@ def getInitPlayers():
                 connectionsList.remove(conn)
 
             if len(connectionsList) == 4:
-                #everyone is still ready
+                # everyone is still ready
                 break
         else:
 
-            #get new client
-            #buffer as many as we need
+            # get new client
+            # buffer as many as we need
             sock.listen(4-len(connectionsList))
             connection, address = sock.accept()
             print("New Connection")

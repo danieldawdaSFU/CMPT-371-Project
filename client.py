@@ -61,10 +61,22 @@ font.set_bold(True)
 win = pygame.display.set_mode((MAP_WIDTH, MAP_HEIGHT))
 pygame.display.set_caption("Game")
 
+def draw_waiting_screen():
+    win.fill(BG_COLOR)
+
+    waiting_text = font.render("Waiting for players...", True, (255, 255, 255))
+    waiting_rect = waiting_text.get_rect(center=(MAP_WIDTH // 2, MAP_HEIGHT // 2 - 60))
+    win.blit(waiting_text, waiting_rect)
+
+    pygame.display.update()
+
 #connect to server, blocks till game starts
 def connect(address, port):
-    global gameStarted
+    global gameStarted, playerNumber
     sock.connect((address, port))
+
+    draw_waiting_screen()
+
     #we will receive a player number first.
     #then we will receive a game start message
     while not gameStarted:
@@ -79,7 +91,8 @@ def connect(address, port):
 
             #send player number back as confirmation that we are active
             sock.send(data)
-    print("I am player", playerNumber)
+
+            print(f"You are player {int(playerNumber) + 1}.")
 
     return playerNumber
 
@@ -176,19 +189,19 @@ def recvGameUpdates():
                     positions[i][1] = y_pos
         updateDisplay()
 
-def draw_grid(window):
-    window.fill(BG_COLOR)
+def draw_grid():
+    win.fill(BG_COLOR)
 
     # drawing vertical grid lines from left to right, every 50 pixels
     for x in range(0, MAP_WIDTH, TILE_SIZE):
-        pygame.draw.line(window, GRID_COLOR, (x, 0), (x, MAP_HEIGHT))
+        pygame.draw.line(win, GRID_COLOR, (x, 0), (x, MAP_HEIGHT))
 
     # drawing horizontal grid lined from top to bottom, every 50 pixels
     for y in range(0, MAP_HEIGHT, TILE_SIZE):
-        pygame.draw.line(window, GRID_COLOR, (0, y), (MAP_WIDTH, y))
+        pygame.draw.line(win, GRID_COLOR, (0, y), (MAP_WIDTH, y))
 
 def updateDisplay():
-    draw_grid(win)
+    draw_grid()
 
     # draw all players
     for i in range(4):
@@ -199,11 +212,11 @@ def updateDisplay():
             # Draw the player's rect
             pygame.draw.rect(win, PLAYER_COLORS[i], (x*TILE_SIZE, y*TILE_SIZE, player_width, player_height))
             # Render the player's ID as a text rect
-            playerID = font.render((f"P{i + 1}"), True, (255, 255, 255))
+            playerID_text = font.render((f"P{i + 1}"), True, (255, 255, 255))
             # Center the text rect in the player's rect
-            playerID_rect = playerID.get_rect(center=(x*TILE_SIZE + TILE_SIZE // 2, y*TILE_SIZE + TILE_SIZE // 2))
+            playerID_rect = playerID_text.get_rect(center=(x*TILE_SIZE + TILE_SIZE // 2, y*TILE_SIZE + TILE_SIZE // 2))
             # Draw the player's ID onto the game window
-            win.blit(playerID, playerID_rect)
+            win.blit(playerID_text, playerID_rect)
 
         except Exception as e:
             print(f"Error drawing player {i}: {e}")
@@ -215,7 +228,6 @@ def main():
     global playerNumber
     #connect, wait until game starts
     playerNumber = connect("localhost", 53333)
-    print("Game Started. My player number is:", playerNumber)
     #game is now started
     # init_game()
     #make thread to receive game state updates/drawing it (mutex needed)
