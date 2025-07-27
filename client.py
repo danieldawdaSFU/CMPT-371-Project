@@ -125,7 +125,7 @@ def draw_game_win():
     win_rect = win_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(win_text, win_rect)
 
-    score_text = font.render((f"Your team's score: {currentScore} / 20"), True, TEXT_COLOR)
+    score_text = font.render((f"Team Score: {currentScore} / 20"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
     win.blit(score_text, score_rect)
 
@@ -140,7 +140,7 @@ def draw_game_over():
     lose_rect = lose_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(lose_text, lose_rect)
 
-    score_text = font.render((f"Your team's score: {currentScore} / 20"), True, TEXT_COLOR)
+    score_text = font.render((f"Team Score: {currentScore} / 20"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
     win.blit(score_text, score_rect)
 
@@ -321,11 +321,11 @@ def draw_grid():
 
     # drawing vertical grid lines from left to right, every 50 pixels
     for x in range(0, MAP_WIDTH, TILE_SIZE):
-        pygame.draw.line(win, GRID_COLOR, (x, 0), (x, MAP_HEIGHT))
+        pygame.draw.line(win, GRID_COLOR, (x, 0), (x, MAP_HEIGHT), 3)
 
     # drawing horizontal grid lined from top to bottom, every 50 pixels
     for y in range(0, MAP_HEIGHT, TILE_SIZE):
-        pygame.draw.line(win, GRID_COLOR, (0, y), (MAP_WIDTH, y))
+        pygame.draw.line(win, GRID_COLOR, (0, y), (MAP_WIDTH, y), 3)
 
 def draw_walls():
     for wall in walls:
