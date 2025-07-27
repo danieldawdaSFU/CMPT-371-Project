@@ -320,7 +320,7 @@ def recvGameUpdates():
             break
         elif data == "GAMEOVER":
             print("Game Lost")
-            #draw_game_over()
+            draw_game_over()
             break
 
         updateDisplay()
