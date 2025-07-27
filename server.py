@@ -308,7 +308,7 @@ def getDifficulty():
     else:
         return 1, 2, 60
 
-# Creates the given number of goals for each player which start with the given time limit
+# Generates new goals with a specific number per player and time limit based on current score
 def generateGoals():
     _, goalsPerPlayer, timeLimit = getDifficulty()
 

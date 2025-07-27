@@ -378,13 +378,11 @@ def draw_players():
             with mutex:
                 x, y = positions[i]
 
-            # Draw the player's rect
-            pygame.draw.rect(win, PLAYER_COLORS[i], (x * TILE_SIZE, y * TILE_SIZE, player_width, player_height))
-            # Draw a border around the player's tile
-            pygame.draw.rect(win, TEXT_COLOR, (x * TILE_SIZE, y * TILE_SIZE, player_width, player_height), 2)
+            # Draw the player's circle
+            pygame.draw.circle(win, PLAYER_COLORS[i], [x * TILE_SIZE + (TILE_SIZE / 2), y * TILE_SIZE + (TILE_SIZE / 2)], TILE_SIZE / 2)
             # Render the player's ID as a text rect
             playerID_text = font.render((f"P{i + 1}"), True, TEXT_COLOR)
-            # Center the text rect in the player's rect
+            # Center the text rect in the player's circle
             playerID_rect = playerID_text.get_rect(center=(x * TILE_SIZE + TILE_SIZE // 2, y * TILE_SIZE + TILE_SIZE // 2))
             # Draw the player's ID onto the game window
             win.blit(playerID_text, playerID_rect)
