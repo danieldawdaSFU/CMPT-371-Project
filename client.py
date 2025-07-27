@@ -293,6 +293,9 @@ def recvGameUpdates():
                     positions[i][1] = y_pos
         elif data == "GOALUPDT":
             with mutex:
+                # clear all goals so that only current info from server is kept
+                goals = []
+
                 # receive goal positions and info
                 # Format is ("GOALUPDTNGCSXXYYPNTLXXYYPNTL...")
                 # where NG = number of goals, CS = current score (number of goals reached), XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
@@ -359,10 +362,7 @@ def draw_sidebar():
     playerID_rect = playerID_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 200))
     win.blit(playerID_text, playerID_rect)
 
-def updateDisplay():
-    draw_grid()
-
-    # draw all players
+def draw_players():
     for i in range(4):
         try:
             with mutex:
@@ -382,9 +382,12 @@ def updateDisplay():
         except Exception as e:
             print(f"Error drawing player {i}: {e}")
 
+def updateDisplay():
+    draw_grid()
     draw_goal_tiles()
     draw_walls()
     draw_sidebar()
+    draw_players()
 
     pygame.display.update()
 
