@@ -40,6 +40,8 @@ pygame.init()
 MAP_WIDTH = MAP_HEIGHT = 800
 # 80x80 pixel tile size
 TILE_SIZE = 80
+# 10x10 grid size
+GRID_WIDTH = GRID_HEIGHT = 10
 
 # map bg - black
 BG_COLOR = (0, 0, 0)
@@ -79,7 +81,7 @@ def connect(address, port):
             #updated player number
 
             #receive 1 byte for player number
-            playerNumber = sock.recv(1).decode()
+            playerNumber = int(sock.recv(1))
 
             #send player number back as confirmation that we are active
             sock.send(data)
@@ -94,12 +96,31 @@ def checkForNoCollision(x, y):
             return True
     return False
 
-# TODO: check for collision on players or walls before sending move packet
+# Sends packet telling server that player is moving either to N, E, S, or W direction 1 tile, if there's no collision (ex. with players or walls)
 def send_move(dir, down):
+    newPos = [coord for coord in positions[playerNumber - 1]]
+
+    # Calculate the coords of where the player is moving to
+    if down:
+        if dir == "N":
+            newPos[1] -= 1
+            newPos[1] %= GRID_HEIGHT
+        elif dir == "S":
+            newPos[1] += 1
+            newPos[1] %= GRID_HEIGHT
+        elif dir == "W":
+            newPos[0] -= 1
+            newPos[0] %= GRID_WIDTH
+        elif dir == "E":
+            newPos[0] += 1
+            newPos[0] %= GRID_WIDTH
+    
     # construct message ("PLYRMOVE <N/S/E/W direction> + <1/0>")
     if down:
-        msg = "PLYRMOVE" + dir + "1"
-        sock.send(msg.encode())
+        # Check if there's something in the tile the player is moving to
+        if checkForNoCollision(newPos[0], newPos[1]):
+            msg = "PLYRMOVE" + dir + "1"
+            sock.send(msg.encode())
     else:
         msg = "PLYRMOVE" + dir + "0"
         sock.send(msg.encode())
@@ -201,6 +222,12 @@ def recvGameUpdates():
                     time_left = int(sock.recv(2))
 
                     goals.append([x_pos, y_pos, player_num, time_left])
+        elif data == "GAMEWINN":
+            print("Game won")
+            # TODO: winning UI
+        elif data == "GAMEOVER":
+            print("Game lost")
+            # TODO: losing UI
         updateDisplay()
 
 def draw_grid(window):

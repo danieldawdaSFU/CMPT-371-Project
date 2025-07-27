@@ -268,12 +268,11 @@ def checkForGoal(x, y, playerNumber):
 
         # if current score is equal to max score, then the players won the game
         if currentScore >= maxScore:
-            # TODO: double check if this is right
             print("Game Win")
             gameStarted = False
             broadcastToClients("GAMEWINN")
 
-# TODO: function description
+# Creates the given number of goals for each player which start with the given time limit
 def generateGoals(goalsPerPlayer, timeLimit):
     takenTiles = [wall for wall in gameState['walls']]
     takenTiles.extend(gameState['goals'])
@@ -290,7 +289,7 @@ def generateGoals(goalsPerPlayer, timeLimit):
                         gameState['goals'].append([x, y, playerNum, timeLimit])
                         break
 
-# TODO: function description
+# Decreases the timers on all existing goals, and creates new goals if there currently aren't enough on the board
 # TODO: could have varying degrees of difficulty which changes the time limit of goals and how much are generated
 def updateGoalStates():
     global updateGoalTimers, gameStarted
@@ -304,7 +303,6 @@ def updateGoalStates():
                 goal[3] -= 1
                 if goal[3] == 0:
                     print("Game Over")
-                    # TODO: double check if this is right
                     gameStarted = False
                     broadcastToClients("GAMEOVER")
             updateGoalTimers = False
