@@ -363,7 +363,7 @@ def main():
     while True:
         # reset values for new game
         prevLevel = -1
-        currentScore = 35
+        currentScore = 0
         gameState['goals'].clear()
 
         #start game
