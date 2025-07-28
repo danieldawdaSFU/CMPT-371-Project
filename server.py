@@ -31,11 +31,15 @@ currentScore = 0
 prevLevel = -1
 currentLevel = -1
 
-#North, West, South, East movement vectors for each player
-playerInputs = [[False, False, False, False],
-                [False, False, False, False],
-                [False, False, False, False],
-                [False, False, False, False]]
+#North, South, West, East movement vectors for each player. 
+#   2 = down, already processed at least once (release = stop)
+#   1 = down (not processed, ie. if up received got to 0)
+#   0 = just released between frames (process as true once), 
+#   -1 = up
+playerInputs = [[-1, -1, -1, -1],
+                [-1, -1, -1, -1],
+                [-1, -1, -1, -1],
+                [-1, -1, -1, -1]]
 
 # playerPos: [[x, y]]
 playerPos = [[4, 4],
@@ -113,20 +117,50 @@ def handleConnection(connection, index):
                 #read <N/S/E/W><1/0>
                 data = connection.recv(2).decode()
                 with mutex:
-                    # if recv PLYRMOVE data then move based on dir
-                    for dirr in range(len(playerInputs[index])):
-                        playerInputs[index][dirr] = False
-                    if "N" in data:
-                        playerInputs[index][0] = (data[1] == "1")
-                    elif "S" in data:
-                        playerInputs[index][1] = (data[1] == "1")
-                    elif "W" in data:
-                        playerInputs[index][2] = (data[1] == "1")
-                    elif "E" in data:
-                        playerInputs[index][3] = (data[1] == "1")
+                    if data[1] == "0":
+                        #process key up request
+                        if "N" in data:
+                            if playerInputs[index][0] == 1:
+                                playerInputs[index][0] = 0
+                            elif playerInputs[index][0] == 2:
+                                playerInputs[index][0] = -1
+                        elif "S" in data:
+                            if playerInputs[index][1] == 1:
+                                playerInputs[index][1] = 0
+                            elif playerInputs[index][1] == 2:
+                                playerInputs[index][1] = -1
+                        elif "W" in data:
+                            if playerInputs[index][2] == 1:
+                                playerInputs[index][2] = 0
+                            elif playerInputs[index][2] == 2:
+                                playerInputs[index][2] = -1
+                        elif "E" in data:
+                            if playerInputs[index][3] == 1:
+                                playerInputs[index][3] = 0
+                            elif playerInputs[index][3] == 2:
+                                playerInputs[index][3] = -1
+
+                    elif data[1] == "1":
+                        #process key down request
+                    
+                        for dirr in range(len(playerInputs[index])):
+                            playerInputs[index][dirr] = -1
+                        if "N" in data:
+                            playerInputs[index][0] = 1
+                        elif "S" in data:
+                            playerInputs[index][1] = 1
+                        elif "W" in data:
+                            playerInputs[index][2] = 1
+                        elif "E" in data:
+                            playerInputs[index][3] = 1
+            print(data)
         except:
             #close socket on error #todo
-            pass
+            #terminate connection
+            with mutex:
+                connection.close()
+            #end this thread
+            return
 
 
 #function to send the current game state to all players
@@ -141,8 +175,9 @@ def broadcastGameUpdates():
                         str(playerPos[2][1]).zfill(2)+
                         str(playerPos[3][0]).zfill(2)+
                         str(playerPos[3][1]).zfill(2))
-        broadcastToClients(playerUpdateData)
+    broadcastToClients(playerUpdateData)
 
+    with mutex:
         # format data ("GOALUPDTNGCSCLXXYYPNTLXXYYPNTL...")
         # where NG = number of goals, CS = current score (number of goals reached), CL = current level, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
         goalUpdateData = "GOALUPDT" + str(len(goals)).zfill(2) + str(currentScore).zfill(2) + str(currentLevel).zfill(2)
@@ -151,7 +186,7 @@ def broadcastGameUpdates():
                 str(goal[1]).zfill(2)+
                 str(goal[2]).zfill(2)+
                 str(math.ceil(goal[3])).zfill(2))
-        broadcastToClients(goalUpdateData)
+    broadcastToClients(goalUpdateData)
 
 def broadcastToClients(data):
     for conn in range(len(connectionList)):
@@ -236,37 +271,50 @@ def updatePositions(playerInputs, positions):
     with mutex:
         for player in range(len(positions)):
             #N
-            if playerInputs[player][0]:
+            if playerInputs[player][0] > -1:
                 newY = positions[player][1] - 1
                 newY %= GRID_HEIGHT
                 if checkForNoCollision(positions[player][0], newY):
                     positions[player][1] = newY
                     # check if the player moved onto a goal tile
                     checkForGoal(positions[player][0], positions[player][1], player)
-
+                if playerInputs[player][0] == 0:
+                    playerInputs[player][0] = -1
+                elif playerInputs[player][0] == 1:
+                    playerInputs[player][0] = 2
             #S
-            elif playerInputs[player][1]:
+            elif playerInputs[player][1] > -1:
                 newY = positions[player][1] + 1
                 newY %= GRID_HEIGHT
                 if checkForNoCollision(positions[player][0], newY):
                     positions[player][1] = newY
                     checkForGoal(positions[player][0], positions[player][1], player)
-
+                if playerInputs[player][1] == 0:
+                    playerInputs[player][1] = -1
+                elif playerInputs[player][1] == 1:
+                    playerInputs[player][1] = 2
             #W
-            elif playerInputs[player][2]:
+            elif playerInputs[player][2] > -1:
                 newX = positions[player][0] - 1
                 newX %= GRID_HEIGHT
                 if checkForNoCollision(newX, positions[player][1]):
                     positions[player][0] = newX
                     checkForGoal(positions[player][0], positions[player][1], player)
-
+                if playerInputs[player][2] == 0:
+                    playerInputs[player][2] = -1
+                elif playerInputs[player][2] == 1:
+                    playerInputs[player][2] = 2
             #E
-            elif playerInputs[player][3]:
+            elif playerInputs[player][3] > -1:
                 newX = positions[player][0] + 1
                 newX %= GRID_HEIGHT
                 if checkForNoCollision(newX, positions[player][1]):
                     positions[player][0] = newX
                     checkForGoal(positions[player][0], positions[player][1], player)
+                if playerInputs[player][3] == 0:
+                    playerInputs[player][3] = -1
+                elif playerInputs[player][3] == 1:
+                    playerInputs[player][3] = 2
 
 # Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
 def checkForNoCollision(x, y):
@@ -346,13 +394,15 @@ def updateGoalStates():
             goals.clear()
             generateGoals()
             prevLevel = currentLevel
-
+        gameEnd = False
         for goal in goals:
             goal[3] -= SERVER_LOOP_SLEEP_TIME
             if goal[3] <= 0:
-                print("Game Over")
-                gameStarted = False
-                broadcastToClients("GAMEOVER")
+                gameEnd = True
+    if gameEnd:
+        print("Game Over")
+        gameStarted = False
+        broadcastToClients("GAMEOVER")
 
 def updateGameState():
     updatePositions(playerInputs, playerPos)

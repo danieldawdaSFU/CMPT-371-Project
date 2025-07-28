@@ -155,18 +155,30 @@ def connect(address, port):
     #we will receive a player number first.
     #then we will receive a game start message
     while not gameStarted:
-        data = sock.recv(MESSAGE_HEADER_LENGTH)
+        try:
+            data = sock.recv(MESSAGE_HEADER_LENGTH)
+        except:
+            print("Failed to get player number from server.")
+            return -1
         if data == b"GAMESTRT":
             gameStarted = True
         elif data == b"PLYRJOIN":
             #updated player number
 
             #receive 1 byte for player number
-            playerNumber = int(sock.recv(1))
+            try:
+                playerNumber = int(sock.recv(1))
+            except:
+                print("Failed to get player number from server.")
+                return -1
+            
 
-            #send player number back as confirmation that we are active
-            sock.send(data)
-
+            
+            try: #send player number back as confirmation that we are active
+                sock.send(data)
+            except:
+                print("Failed to return player number to server.")
+                return -1
             print(f"You are player {int(playerNumber)}.")
 
     return playerNumber
@@ -198,26 +210,44 @@ def send_move(dir, down):
             newPos[0] %= GRID_WIDTH
 
     # construct message ("PLYRMOVE <N/S/E/W direction> + <1/0>")
+    global gameStarted
     if down:
         # Check if there's something in the tile the player is moving to
         if checkForNoCollision(newPos[0], newPos[1]):
             msg = "PLYRMOVE" + dir + "1"
-            sock.send(msg.encode())
+            try:
+                sock.send(msg.encode())
+            except Exception as e:
+                print("Failed to contact server,", e, "Dropping game.")
+                
+                #called with mutex
+                gameStarted = False
+                return
     else:
         msg = "PLYRMOVE" + dir + "0"
-        sock.send(msg.encode())
+        try:
+            sock.send(msg.encode())
+        except Exception as e:
+            print("Failed to contact server,", e, "Dropping game.")
+            #called with mutex
+            gameStarted = False
+            return
 
 def inputHandler():
+    global gameStarted
     # continuously check for inputs
     while True:
         #dont bombard the server with messages
         pygame.time.delay(1)
-
         try:
             for event in pygame.event.get():
                 # if quit then close game
                 if event.type == pygame.QUIT:
                     pygame.quit()
+                    #also close the rest of the game, since we need to handle that
+                    gameStarted = False #close other threads
+                    return
+
 
                 # get keydown and send data
                 with mutex:
@@ -235,26 +265,28 @@ def inputHandler():
                             send_move("E", True)
                             clientInputs[3] = True
 
+
                     # get keyup and send data
                     if event.type == pygame.KEYUP:
                         if event.key == pygame.K_UP and clientInputs[0] == True:
                             send_move("N", False)
                             clientInputs[0] = False
-                        elif event.key == pygame.K_DOWN and clientInputs[1] == True:
+                        if event.key == pygame.K_DOWN and clientInputs[1] == True:
                             send_move("S", False)
                             clientInputs[1] = False
-                        elif event.key == pygame.K_LEFT and clientInputs[2] == True:
+                        if event.key == pygame.K_LEFT and clientInputs[2] == True:
                             send_move("W", False)
                             clientInputs[2] = False
-                        elif event.key == pygame.K_RIGHT and clientInputs[3] == True:
+                        if event.key == pygame.K_RIGHT and clientInputs[3] == True:
                             send_move("E", False)
                             clientInputs[3] = False
-                    
+                            
             with mutex:
                 if gameStarted == False:
                     #game ended
                     return
-        except:
+        except Exception as e:
+            print("error in input handler,", e)
             return
 
 def recvGameUpdates():
@@ -265,18 +297,23 @@ def recvGameUpdates():
         try:
             data = sock.recv(MESSAGE_HEADER_LENGTH).decode()
         except:
-            #Failed to get update. Dissconnect.
-            # TODO
-            pass
+            #failed to get message
+            gameStarted = False
+            return
         if data == "PLYRUPDT":
             #receive each players position
             # Format is PLYRUPDTXXYYXXYYXXYYXXYY
             #ie. 2 chars for each players x/y position, and 4 players
             for i in range(4):
-                data = sock.recv(2).decode()
-                x_pos = int(data)
-                data = sock.recv(2).decode()
-                y_pos = int(data)
+                try:
+                    data = sock.recv(2).decode()
+                    x_pos = int(data)
+                    data = sock.recv(2).decode()
+                    y_pos = int(data)
+                except:
+                    with mutex:
+                        gameStarted = False
+                    return
 
                 #update player posititons
                 with mutex:
@@ -290,28 +327,35 @@ def recvGameUpdates():
                 # receive goal positions and info
                 # Format is ("GOALUPDTNGCSXXYYPNTLXXYYPNTL...")
                 # where NG = number of goals, CS = current score (number of goals reached), CL = current level, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
-                numGoals = int(sock.recv(2))
-                currentScore = int(sock.recv(2))
-                currentLevel = int(sock.recv(2))
+                try:
+                    numGoals = int(sock.recv(2))
+                    currentScore = int(sock.recv(2))
+                    currentLevel = int(sock.recv(2))
+                except:
+                    gameStarted = False
+                    return
 
                 # clear the goals array to get rid of tiles that were already reached
                 goals.clear()
 
                 for i in range(numGoals):
-                    x_pos = int(sock.recv(2))
-                    y_pos = int(sock.recv(2))
-                    player_num = int(sock.recv(2))
-                    time_left = int(sock.recv(2))
-
+                    try:
+                        x_pos = int(sock.recv(2))
+                        y_pos = int(sock.recv(2))
+                        player_num = int(sock.recv(2))
+                        time_left = int(sock.recv(2))
+                    except:
+                        gameStarted = False
+                        return
                     goals.append([x_pos, y_pos, player_num, time_left])
         elif data == "GAMEWINN":
             print("Game Won")
             draw_game_win()
-            break
+            return
         elif data == "GAMEOVER":
             print("Game Lost")
             draw_game_over()
-            break
+            return
 
         try:
             updateDisplay()
@@ -400,8 +444,12 @@ def main():
     global playerNumber
     #connect, wait until game starts
     playerNumber = connect("localhost", 53333)
+    if playerNumber == -1:
+        #error in starting, quit
+        return
+
     #game is now started
-    # init_game()
+
     #make thread to receive game state updates/drawing it (mutex needed)
     Thread(target = recvGameUpdates, args=()).start()
     #make thread for sending inputs (mutex needed for verifying legal inputs)
@@ -410,11 +458,14 @@ def main():
     while gameStarted:
         pass
 
-    # TODO: handle "game terminated" state
 
-    #game is over, terminate threads (with mutex)
+    #game is over, terminate threads
+    print("Ending connection")
+    try:
+        sock.close()
+    except Exception as e:
+        print("Error in closing connection,", e)
 
-    #reconnect for a new game, if desired
-
+    #if they want a new game, they will need to restart their client.    
 
 main()
