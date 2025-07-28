@@ -19,12 +19,18 @@ gameStarted = False
 
 #init player positions
 # players start at the center of the window
-positions = [[4, 4],
+playerPos = [[4, 4],
              [5, 4],
              [4, 5],
              [5, 5]]
+# list of goals positions, who they belong to, and how time is left on it
+goals = []
+currentScore = 0
+currentLevel = -1
+### end Mutex locked variables
+
 # list of wall positions
-walls = [[0, 2],
+WALLS_POS = [[0, 2],
          [1, 2],
          [1, 5],
          [1, 6],
@@ -48,22 +54,11 @@ walls = [[0, 2],
          [9, 0],
          [9, 1],
          [9, 6]]
-# list of goals positions, who they belong to, and how time is left on it
-goals = []
-currentScore = 0
-currentLevel = -1
-### end Mutex locked variables
-
-maxScore = 36
-totalLevels = 3
 
 clientInputs = [False, False, False, False]
 
-#80x80 pixel rectangle
-player_height = player_width = 80
-
-# init pygame
-pygame.init()
+MAX_SCORE = 36
+TOTAL_LEVELS = 3
 
 # 800x800 pixel game map
 MAP_WIDTH = MAP_HEIGHT = 800
@@ -99,6 +94,9 @@ PLAYER_COLORS = [
     # cyan
     (0, 220, 220)
 ]
+
+# init pygame
+pygame.init()
 
 # init text font
 pygame.font.init()
@@ -175,14 +173,14 @@ def connect(address, port):
 
 # Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
 def checkForNoCollision(x, y):
-    if not [x, y] in positions:
-        if not [x, y] in walls:
+    if not [x, y] in playerPos:
+        if not [x, y] in WALLS_POS:
             return True
     return False
 
 # Sends packet telling server that player is moving either to N, E, S, or W direction 1 tile, if there's no collision (ex. with players or walls)
 def send_move(dir, down):
-    newPos = [coord for coord in positions[playerNumber - 1]]
+    newPos = [coord for coord in playerPos[playerNumber - 1]]
 
     # Calculate the coords of where the player is moving to
     if down:
@@ -210,65 +208,57 @@ def send_move(dir, down):
         sock.send(msg.encode())
 
 def inputHandler():
-    # always check inputs
+    # continuously check for inputs
     while True:
         #dont bombard the server with messages
         pygame.time.delay(1)
 
-        for event in pygame.event.get():
-            # if quit then close game
-            if event.type == pygame.QUIT:
-                pygame.quit()
-        with mutex:
-            if gameStarted == False:
-                #game ended
-                return
+        try:
+            for event in pygame.event.get():
+                # if quit then close game
+                if event.type == pygame.QUIT:
+                    pygame.quit()
 
-        # get keydown and send data
-        with mutex:
-            if event.type == pygame.KEYDOWN:
-                eventNum = -1
-                if event.key == pygame.K_UP and clientInputs[0] == False:
-                    eventNum = 0
-                    send_move("N", True)
-                    clientInputs[0] = True
-                elif event.key == pygame.K_DOWN and clientInputs[1] == False:
-                    eventNum = 1
-                    send_move("S", True)
-                    clientInputs[1] = True
-                elif event.key == pygame.K_LEFT and clientInputs[2] == False:
-                    eventNum = 2
-                    send_move("W", True)
-                    clientInputs[2] = True
-                elif event.key == pygame.K_RIGHT and clientInputs[3] == False:
-                    eventNum = 3
-                    send_move("E", True)
-                    clientInputs[3] = True
-                if (event.key == pygame.K_UP or event.key == pygame.K_DOWN or
-                   event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT):
-                    # for i in range(len(clientInputs)):
-                    #     clientInputs[i] = False
-                    #     if i == eventNum:
-                    #         clientInputs[i] = True
-                    pass
+                # get keydown and send data
+                with mutex:
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_UP and clientInputs[0] == False:
+                            send_move("N", True)
+                            clientInputs[0] = True
+                        elif event.key == pygame.K_DOWN and clientInputs[1] == False:
+                            send_move("S", True)
+                            clientInputs[1] = True
+                        elif event.key == pygame.K_LEFT and clientInputs[2] == False:
+                            send_move("W", True)
+                            clientInputs[2] = True
+                        elif event.key == pygame.K_RIGHT and clientInputs[3] == False:
+                            send_move("E", True)
+                            clientInputs[3] = True
 
-            # get keyup and send data
-            if event.type == pygame.KEYUP:
-                if event.key == pygame.K_UP and clientInputs[0] == True:
-                    send_move("N", False)
-                    clientInputs[0] = False
-                if event.key == pygame.K_DOWN and clientInputs[1] == True:
-                    send_move("S", False)
-                    clientInputs[1] = False
-                if event.key == pygame.K_LEFT and clientInputs[2] == True:
-                    send_move("W", False)
-                    clientInputs[2] = False
-                if event.key == pygame.K_RIGHT and clientInputs[3] == True:
-                    send_move("E", False)
-                    clientInputs[3] = False
+                    # get keyup and send data
+                    if event.type == pygame.KEYUP:
+                        if event.key == pygame.K_UP and clientInputs[0] == True:
+                            send_move("N", False)
+                            clientInputs[0] = False
+                        elif event.key == pygame.K_DOWN and clientInputs[1] == True:
+                            send_move("S", False)
+                            clientInputs[1] = False
+                        elif event.key == pygame.K_LEFT and clientInputs[2] == True:
+                            send_move("W", False)
+                            clientInputs[2] = False
+                        elif event.key == pygame.K_RIGHT and clientInputs[3] == True:
+                            send_move("E", False)
+                            clientInputs[3] = False
+                    
+            with mutex:
+                if gameStarted == False:
+                    #game ended
+                    return
+        except:
+            return
 
 def recvGameUpdates():
-    global goals, currentScore, currentLevel
+    global goals, currentScore, currentLevel, gameStarted
     # constantly check for game updates
     while True:
         # data will be "POSXXXYYYXXXYYYXXXYYYXXXYYY"
@@ -290,8 +280,8 @@ def recvGameUpdates():
 
                 #update player posititons
                 with mutex:
-                    positions[i][0] = x_pos
-                    positions[i][1] = y_pos
+                    playerPos[i][0] = x_pos
+                    playerPos[i][1] = y_pos
         elif data == "GOALUPDT":
             with mutex:
                 # clear all goals so that only current info from server is kept
@@ -323,7 +313,13 @@ def recvGameUpdates():
             draw_game_over()
             break
 
-        updateDisplay()
+        try:
+            updateDisplay()
+        except Exception as e:
+            print(f"Error drawing display: {e}")
+            with mutex:
+                gameStarted = False
+            return
 
 def draw_grid():
     win.fill(BG_COLOR)
@@ -337,7 +333,7 @@ def draw_grid():
         pygame.draw.line(win, GRID_COLOR, (0, y), (MAP_WIDTH, y), 3)
 
 def draw_walls():
-    for wall in walls:
+    for wall in WALLS_POS:
         pygame.draw.rect(win, WALL_COLOR, (wall[0] * TILE_SIZE, wall[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE))
         # draw a diagonal line from top-right to bot-left
         pygame.draw.line(win, DIAG_LINE_COLOR, (wall[0] * TILE_SIZE + TILE_SIZE, wall[1] * TILE_SIZE), (wall[0] * TILE_SIZE, wall[1] * TILE_SIZE + TILE_SIZE), 5)
@@ -354,17 +350,17 @@ def draw_goal_tiles():
         win.blit(time_text, time_rect)
 
 def draw_sidebar():
-    global currentScore, playerNumber, totalLevels
+    global currentScore, playerNumber, TOTAL_LEVELS
 
     # draw the sidebar background
     sidebar_rect = pygame.Rect(MAP_WIDTH, 0, SIDEBAR_WIDTH, MAP_HEIGHT)
     pygame.draw.rect(win, (40, 40, 40), sidebar_rect)
 
-    score_text = font.render((f"Team Score: {currentScore} / {maxScore}"), True, TEXT_COLOR)
+    score_text = font.render((f"Team Score: {currentScore} / {MAX_SCORE}"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 100))
     win.blit(score_text, score_rect)
 
-    level_text = font.render((f"Level: {currentLevel} / {totalLevels}"), True, TEXT_COLOR)
+    level_text = font.render((f"Level: {currentLevel} / {TOTAL_LEVELS}"), True, TEXT_COLOR)
     level_rect = level_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 200))
     win.blit(level_text, level_rect)
 
@@ -376,7 +372,7 @@ def draw_players():
     for i in range(4):
         try:
             with mutex:
-                x, y = positions[i]
+                x, y = playerPos[i]
 
             # Draw the player's circle
             pygame.draw.circle(win, PLAYER_COLORS[i], [x * TILE_SIZE + (TILE_SIZE / 2), y * TILE_SIZE + (TILE_SIZE / 2)], TILE_SIZE / 2)
@@ -413,6 +409,8 @@ def main():
 
     while gameStarted:
         pass
+
+    # TODO: handle "game terminated" state
 
     #game is over, terminate threads (with mutex)
 

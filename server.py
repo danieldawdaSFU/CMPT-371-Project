@@ -3,6 +3,7 @@ from threading import Thread
 from threading import Lock
 import time
 import random
+import math
 
 sock = socket.socket(
     socket.AF_INET,
@@ -14,7 +15,9 @@ MESSAGE_HEADER_LENGTH = 8
 # 10x10 grid (each tile is 80 pixels)
 GRID_WIDTH = GRID_HEIGHT = 10
 
-maxScore = 36
+MAX_SCORE = 36
+
+SERVER_LOOP_SLEEP_TIME = 0.5
 
 #server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
 sock.bind(("localhost", 53333))
@@ -34,44 +37,42 @@ playerInputs = [[False, False, False, False],
                 [False, False, False, False],
                 [False, False, False, False]]
 
-# initial game state dict
-# pos: [[x, y]]
-# goals: [[x, y, player number, time remaining (seconds)]]
-# players start at the center of the grid
-gameState = {'pos': [[4, 4],
-                     [5, 4],
-                     [4, 5],
-                     [5, 5]],
-             'walls': [[0, 2],
-                       [1, 2],
-                       [1, 5],
-                       [1, 6],
-                       [1, 8],
-                       [2, 1],
-                       [2, 4],
-                       [2, 9],
-                       [3, 1],
-                       [3, 7],
-                       [4, 3],
-                       [4, 7],
-                       [5, 2],
-                       [5, 6],
-                       [5, 8],
-                       [6, 8],
-                       [7, 5],
-                       [7, 6],
-                       [8, 0],
-                       [8, 3],
-                       [8, 7],
-                       [9, 0],
-                       [9, 1],
-                       [9, 6]],
-             'goals': []}
+# playerPos: [[x, y]]
+playerPos = [[4, 4],
+             [5, 4],
+             [4, 5],
+             [5, 5]]
 
-# Since the game updates every 0.5 sec, and the timers need to update every 1 sec, this variable flips every update
-updateGoalTimers = False
+# goals: [[x, y, player number, time remaining (seconds)]]
+goals = []
 
 ### end Mutex locked variables
+
+# list of wall positions
+WALLS_POS = [[0, 2],
+         [1, 2],
+         [1, 5],
+         [1, 6],
+         [1, 8],
+         [2, 1],
+         [2, 4],
+         [2, 9],
+         [3, 1],
+         [3, 7],
+         [4, 3],
+         [4, 7],
+         [5, 2],
+         [5, 6],
+         [5, 8],
+         [6, 8],
+         [7, 5],
+         [7, 6],
+         [8, 0],
+         [8, 3],
+         [8, 7],
+         [9, 0],
+         [9, 1],
+         [9, 6]]
 
 #remove a client/thread (dont call from a thread when possible)
 def removeConnection(index):
@@ -95,14 +96,18 @@ def handleConnection(connection, index):
                 #end this thread
                 return
         try:
-            #general receive logic
+            # check if connection is still alive
             if connectionList[index] == None:
-                #error, block thread.
+                # remove all goals from disconnected player
+                for goal in goals:
+                    if goal[2] == index:
+                        goals.remove(goal)
 
-                gameState['goals'].remove
+                #error, block thread.
                 while 1:
                     pass
 
+            #general receive logic
             data = connection.recv(MESSAGE_HEADER_LENGTH).decode()
             if data == "PLYRMOVE":
                 #read <N/S/E/W><1/0>
@@ -128,24 +133,24 @@ def handleConnection(connection, index):
 def broadcastGameUpdates():
     with mutex:
         # format data ("PLYRUPDTXXYYXXYYXXYYXXYY")
-        playerUpdateData = ("PLYRUPDT"+str(gameState["pos"][0][0]).zfill(2)+
-                        str(gameState["pos"][0][1]).zfill(2)+
-                        str(gameState["pos"][1][0]).zfill(2)+
-                        str(gameState["pos"][1][1]).zfill(2)+
-                        str(gameState["pos"][2][0]).zfill(2)+
-                        str(gameState["pos"][2][1]).zfill(2)+
-                        str(gameState["pos"][3][0]).zfill(2)+
-                        str(gameState["pos"][3][1]).zfill(2))
+        playerUpdateData = ("PLYRUPDT"+str(playerPos[0][0]).zfill(2)+
+                        str(playerPos[0][1]).zfill(2)+
+                        str(playerPos[1][0]).zfill(2)+
+                        str(playerPos[1][1]).zfill(2)+
+                        str(playerPos[2][0]).zfill(2)+
+                        str(playerPos[2][1]).zfill(2)+
+                        str(playerPos[3][0]).zfill(2)+
+                        str(playerPos[3][1]).zfill(2))
         broadcastToClients(playerUpdateData)
 
         # format data ("GOALUPDTNGCSCLXXYYPNTLXXYYPNTL...")
         # where NG = number of goals, CS = current score (number of goals reached), CL = current level, XX = x pos of the ith goal, YY = y pos of the ith goal, PN = player number the goal belongs to, TL = time left on goal
-        goalUpdateData = "GOALUPDT" + str(len(gameState['goals'])).zfill(2) + str(currentScore).zfill(2) + str(currentLevel).zfill(2)
-        for goal in gameState['goals']:
+        goalUpdateData = "GOALUPDT" + str(len(goals)).zfill(2) + str(currentScore).zfill(2) + str(currentLevel).zfill(2)
+        for goal in goals:
             goalUpdateData += (str(goal[0]).zfill(2)+
                 str(goal[1]).zfill(2)+
                 str(goal[2]).zfill(2)+
-                str(goal[3]).zfill(2))
+                str(math.ceil(goal[3])).zfill(2))
         broadcastToClients(goalUpdateData)
 
 def broadcastToClients(data):
@@ -265,8 +270,8 @@ def updatePositions(playerInputs, positions):
 
 # Checks all the list of entities given an x y coordinate to see if there is something there that player can't move into (ex. a player or wall)
 def checkForNoCollision(x, y):
-    if not [x, y] in gameState['pos']:
-        if not [x, y] in gameState['walls']:
+    if not [x, y] in playerPos:
+        if not [x, y] in WALLS_POS:
             return True
     return False
 
@@ -276,19 +281,19 @@ def checkForGoal(x, y, playerNumber):
 
     toRemove = []
     # if the player did move onto a goal, add the goal tile to a list so it can be removed later
-    for goal in gameState['goals']:
+    for goal in goals:
         if goal[0] == x and goal[1] == y and goal[2] == playerNumber:
             toRemove.append(goal)
 
     # remove all the goal tiles that a player moved onto
     for goal in toRemove:
-        gameState['goals'].remove(goal)
+        goals.remove(goal)
         # increment the current score
         currentScore += 1
-        print(f"Score: {currentScore}/{maxScore}")
+        print(f"Score: {currentScore}/{MAX_SCORE}")
 
     # if current score is equal to max score, then the players won the game
-    if currentScore >= maxScore:
+    if currentScore >= MAX_SCORE:
         print("Game Win")
         gameStarted = False
         broadcastToClients("GAMEWINN")
@@ -312,9 +317,9 @@ def getDifficulty():
 def generateGoals():
     _, goalsPerPlayer, timeLimit = getDifficulty()
 
-    takenTiles = [wall for wall in gameState['walls']]
-    takenTiles.extend(gameState['goals'])
-    takenTiles.extend(gameState['pos'])
+    takenTiles = [wall for wall in WALLS_POS]
+    takenTiles.extend(goals)
+    takenTiles.extend(playerPos)
 
     for _ in range(goalsPerPlayer):
         for playerNum in range(len(connectionList)):
@@ -325,7 +330,7 @@ def generateGoals():
                     y = random.randint(0, GRID_HEIGHT - 1)
                     if [x, y] not in takenTiles:
                         takenTiles.append([x, y])
-                        gameState['goals'].append([x, y, playerNum, timeLimit])
+                        goals.append([x, y, playerNum, timeLimit])
                         break
 
 # Decreases the timers on all existing goals, and creates new goals if there currently aren't enough on the board
@@ -338,23 +343,19 @@ def updateGoalStates():
 
         # only generate goals when the level changes
         if currentLevel != prevLevel:
-            gameState['goals'].clear()
+            goals.clear()
             generateGoals()
             prevLevel = currentLevel
 
-        if (updateGoalTimers):
-            for goal in gameState['goals']:
-                goal[3] -= 1
-                if goal[3] < 0:
-                    print("Game Over")
-                    gameStarted = False
-                    broadcastToClients("GAMEOVER")
-            updateGoalTimers = False
-        else:
-            updateGoalTimers = True
+        for goal in goals:
+            goal[3] -= SERVER_LOOP_SLEEP_TIME
+            if goal[3] <= 0:
+                print("Game Over")
+                gameStarted = False
+                broadcastToClients("GAMEOVER")
 
 def updateGameState():
-    updatePositions(playerInputs, gameState['pos'])
+    updatePositions(playerInputs, playerPos)
     updateGoalStates()
 
 def main():
@@ -364,7 +365,7 @@ def main():
         # reset values for new game
         prevLevel = -1
         currentScore = 0
-        gameState['goals'].clear()
+        goals.clear()
 
         #start game
         getInitPlayers()
@@ -375,7 +376,7 @@ def main():
             #send new game state
             updateGameState()
             broadcastGameUpdates()
-            time.sleep(0.5)
+            time.sleep(SERVER_LOOP_SLEEP_TIME)
 
         #game end
         with mutex:
