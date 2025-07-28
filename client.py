@@ -124,7 +124,7 @@ def draw_game_win():
     win_rect = win_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(win_text, win_rect)
 
-    score_text = font.render((f"Team Score: {currentScore} / {maxScore}"), True, TEXT_COLOR)
+    score_text = font.render((f"Team Score: {currentScore} / {MAX_SCORE}"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
     win.blit(score_text, score_rect)
 
@@ -139,7 +139,7 @@ def draw_game_over():
     lose_rect = lose_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(lose_text, lose_rect)
 
-    score_text = font.render((f"Team Score: {currentScore} / {maxScore}"), True, TEXT_COLOR)
+    score_text = font.render((f"Team Score: {currentScore} / {MAX_SCORE}"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
     win.blit(score_text, score_rect)
 
