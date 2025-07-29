@@ -86,11 +86,6 @@ def removeConnection(index):
             with mutex:
                 clientThreads[index] = None
                 connectionList[index] = None
-
-                # remove all goals from disconnected player
-                for goal in goals:
-                    if goal[2] == index:
-                        goals.remove(goal)
     except:
         print("Failed to join thread when removing connection.")
 
