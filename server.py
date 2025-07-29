@@ -31,10 +31,10 @@ currentScore = 0
 prevLevel = -1
 currentLevel = -1
 
-#North, South, West, East movement vectors for each player. 
+#North, South, West, East movement vectors for each player.
 #   2 = down, already processed at least once (release = stop)
 #   1 = down (not processed, ie. if up received got to 0)
-#   0 = just released between frames (process as true once), 
+#   0 = just released between frames (process as true once),
 #   -1 = up
 playerInputs = [[-1, -1, -1, -1],
                 [-1, -1, -1, -1],
@@ -142,7 +142,7 @@ def handleConnection(connection, index):
 
                     elif data[1] == "1":
                         #process key down request
-                    
+
                         for dirr in range(len(playerInputs[index])):
                             playerInputs[index][dirr] = -1
                         if "N" in data:
@@ -338,7 +338,7 @@ def checkForGoal(x, y, playerNumber):
         goals.remove(goal)
         # increment the current score
         currentScore += 1
-        print(f"Score: {currentScore}/{MAX_SCORE}")
+        print(f"Team Score: {currentScore}/{MAX_SCORE}")
 
     # if current score is equal to max score, then the players won the game
     if currentScore >= MAX_SCORE:

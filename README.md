@@ -9,8 +9,8 @@ In our game there are 4 players trapped in a grid maze. Once all 4 players load 
 ## Instructions
 To run this game, you must have 4 players, no more, no less. Please also make sure you have the latest version of Python installed on your device.
 
-1. In server.py, on line 20, enter the IP address and port number you want to host the game server on. "localhost" and 53333 are the default values if you want to host the server and run the clients on your own device.
-2. In client.py, on line 404, enter the same IP address and port number you put in for server.py.
+1. In server.py, on line 23, enter the IP address and port number you want to host the game server on. "localhost" and 53333 are the default values if you want to host the server and run the clients on your own device.
+2. In client.py, on line 448, enter the same IP address and port number you put in for server.py.
 3. In the terminal of the host device, enter the command `python server.py`, while in the root directory of this project.
 4. In the terminals of the client devices, enter the command `python client.py`, while in the root directory of this project.
 5. The game will start after all 4 players have ran the command from step 3.
