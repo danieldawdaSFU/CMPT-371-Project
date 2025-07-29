@@ -86,6 +86,11 @@ def removeConnection(index):
             with mutex:
                 clientThreads[index] = None
                 connectionList[index] = None
+
+                # remove all goals from disconnected player
+                for goal in goals:
+                    if goal[2] == index:
+                        goals.remove(goal)
     except:
         print("Failed to join thread when removing connection.")
 
@@ -102,11 +107,6 @@ def handleConnection(connection, index):
         try:
             # check if connection is still alive
             if connectionList[index] == None:
-                # remove all goals from disconnected player
-                for goal in goals:
-                    if goal[2] == index:
-                        goals.remove(goal)
-
                 #error, block thread.
                 while 1:
                     pass
@@ -355,11 +355,11 @@ def getDifficulty():
 
     if currentScore >= 20:
         # return the level, goals per player, and time limit
-        return 3, 4, 10
+        return 3, 4, 20
     elif currentScore >= 8:
-        return 2, 3, 15
+        return 2, 3, 30
     else:
-        return 1, 2, 20
+        return 1, 2, 40
 
 # Generates new goals with a specific number per player and time limit based on current score
 def generateGoals():
@@ -383,7 +383,7 @@ def generateGoals():
 
 # Decreases the timers on all existing goals, and creates new goals if there currently aren't enough on the board
 def updateGoalStates():
-    global updateGoalTimers, gameStarted, currentScore, prevLevel, currentLevel
+    global gameStarted, currentScore, prevLevel, currentLevel
 
     with mutex:
         # Determine current level/round
@@ -410,12 +410,17 @@ def updateGameState():
 
 def main():
     #loop so we can start new games afterwards
-    global gameStarted, currentScore, prevLevel
+    global gameStarted, currentScore, prevLevel, goals, playerPos
     while True:
         # reset values for new game
-        prevLevel = -1
-        currentScore = 0
-        goals.clear()
+        with mutex:
+            prevLevel = -1
+            currentScore = 0
+            goals.clear()
+            playerPos = [[4, 4],
+                        [5, 4],
+                        [4, 5],
+                        [5, 5]]
 
         #start game
         getInitPlayers()
