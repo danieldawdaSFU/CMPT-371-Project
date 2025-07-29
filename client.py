@@ -350,6 +350,8 @@ def recvGameUpdates():
                     goals.append([x_pos, y_pos, player_num, time_left])
         elif data == "GAMEWINN":
             print("Game Won")
+            with mutex:
+                currentScore = MAX_SCORE
             draw_game_win()
             return
         elif data == "GAMEOVER":
