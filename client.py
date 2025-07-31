@@ -109,6 +109,7 @@ pygame.display.set_caption("Game")
 def draw_waiting_screen():
     win.fill(BG_COLOR)
 
+    # draw the waiting text
     waiting_text = font.render("Waiting for players...", True, TEXT_COLOR)
     waiting_rect = waiting_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(waiting_text, waiting_rect)
@@ -120,10 +121,12 @@ def draw_game_win():
 
     win.fill(BG_COLOR)
 
+    # draw the win text
     win_text = font.render("You Win!", True, WIN_COLOR)
     win_rect = win_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(win_text, win_rect)
 
+    # draw the final team score
     score_text = font.render((f"Team Score: {currentScore} / {MAX_SCORE}"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
     win.blit(score_text, score_rect)
@@ -135,10 +138,12 @@ def draw_game_over():
 
     win.fill(BG_COLOR)
 
+    # draw the lose text
     lose_text = font.render("You Lose!", True, LOSE_COLOR)
     lose_rect = lose_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 100))
     win.blit(lose_text, lose_rect)
 
+    # draw the final team score
     score_text = font.render((f"Team Score: {currentScore} / {MAX_SCORE}"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=((MAP_WIDTH + SIDEBAR_WIDTH) // 2, MAP_HEIGHT // 2 - 50))
     win.blit(score_text, score_rect)
@@ -171,9 +176,9 @@ def connect(address, port):
             except:
                 print("Failed to get player number from server.")
                 return -1
-            
 
-            
+
+
             try: #send player number back as confirmation that we are active
                 sock.send(data)
             except:
@@ -219,7 +224,7 @@ def send_move(dir, down):
                 sock.send(msg.encode())
             except Exception as e:
                 print("Failed to contact server,", e, "Dropping game.")
-                
+
                 #called with mutex
                 gameStarted = False
                 return
@@ -280,7 +285,7 @@ def inputHandler():
                         if event.key == pygame.K_RIGHT and clientInputs[3] == True:
                             send_move("E", False)
                             clientInputs[3] = False
-                            
+
             with mutex:
                 if gameStarted == False:
                     #game ended
@@ -388,6 +393,7 @@ def draw_walls():
 
 def draw_goal_tiles():
     for goal in goals:
+        # Draw a goal tile
         pygame.draw.rect(win, PLAYER_COLORS[goal[2]], (goal[0] * TILE_SIZE, goal[1] * TILE_SIZE, TILE_SIZE, TILE_SIZE))
 
         # Draw the countdown timer in the center of a goal tile
@@ -402,14 +408,17 @@ def draw_sidebar():
     sidebar_rect = pygame.Rect(MAP_WIDTH, 0, SIDEBAR_WIDTH, MAP_HEIGHT)
     pygame.draw.rect(win, (40, 40, 40), sidebar_rect)
 
+    # draw the current team score
     score_text = font.render((f"Team Score: {currentScore} / {MAX_SCORE}"), True, TEXT_COLOR)
     score_rect = score_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 100))
     win.blit(score_text, score_rect)
 
+    # draw the current level
     level_text = font.render((f"Level: {currentLevel} / {TOTAL_LEVELS}"), True, TEXT_COLOR)
     level_rect = level_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 200))
     win.blit(level_text, level_rect)
 
+    # draw the player number
     playerID_text = font.render((f"Player Number: {playerNumber}"), True, TEXT_COLOR)
     playerID_rect = playerID_text.get_rect(center=(MAP_WIDTH + SIDEBAR_WIDTH // 2, 300))
     win.blit(playerID_text, playerID_rect)
@@ -468,6 +477,6 @@ def main():
     except Exception as e:
         print("Error in closing connection,", e)
 
-    #if they want a new game, they will need to restart their client.    
+    #if they want a new game, they will need to restart their client.
 
 main()
