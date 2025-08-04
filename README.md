@@ -10,6 +10,7 @@ In our game there are 4 players trapped in a grid maze. Once all 4 players load 
 - To run this game, you must have 4 players, no more, no less. The game will start as soon as the 4th player joins.
 - Before playing the game, please make sure you have the latest version of Python installed on your device.
 - Additionally, please install PyGame by entering `pip install pygame` in the terminal of your device, while in the root directory of this project.
+- Note that when playing the game, the only keys you need to press are the **arrow keys**, to move around the grid.
 - Now you can follow the next steps to play the game!
 
 1. In server.py, on lines 23 & 24, enter the IP address and port number you want to host the game server on. "localhost" and 53333 are the default values if you want to host the server and run the clients on your own device.
