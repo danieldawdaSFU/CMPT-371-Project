@@ -11,6 +11,9 @@ sock = socket.socket(
 #Number of bytes for a message header. ex "PLYRMOVE"
 MESSAGE_HEADER_LENGTH = 8
 
+# server's IP/port. Change as needed.
+ipAddr = "localhost"
+portNum = 53333
 
 mutex = Lock() #general mutex lock for player state changes (new inputs, changing connectionsList, etc)
 #### Mutex locked variables
@@ -454,7 +457,7 @@ def updateDisplay():
 def main():
     global playerNumber
     #connect, wait until game starts
-    playerNumber = connect("localhost", 53333)
+    playerNumber = connect(ipAddr, portNum)
     if playerNumber == -1:
         #error in starting, quit
         return

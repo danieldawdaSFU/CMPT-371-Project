@@ -19,8 +19,12 @@ MAX_SCORE = 36
 
 SERVER_LOOP_SLEEP_TIME = 0.5
 
-#server's IP/port. Change as needed, should be part of client UI to choose right port/IP.
-sock.bind(("localhost", 53333))
+# server's IP/port. Change as needed.
+ipAddr = "localhost"
+portNum = 53333
+
+# binding the server socket to an IP & port
+sock.bind((ipAddr, portNum))
 
 mutex = Lock() #general mutex lock for player state changes (new inputs, changing connectionsList, etc)
 #### Mutex locked variables
