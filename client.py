@@ -156,7 +156,12 @@ def draw_game_over():
 #connect to server, blocks till game starts
 def connect(address, port):
     global gameStarted, playerNumber
-    sock.connect((address, port))
+
+    try:
+        sock.connect((address, port))
+    except:
+        print("Failed to connect to server")
+        return -1
 
     draw_waiting_screen()
 
