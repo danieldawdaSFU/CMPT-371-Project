@@ -84,15 +84,25 @@ WALLS_POS = [[0, 2],
 
 #remove a client/thread (dont call from a thread when possible)
 def removeConnection(index):
+    global gameStarted
+    
     #do not get mutex before calling
     try:
         if clientThreads[index] != None:
             with mutex:
                 clientThreads[index] = None
                 connectionList[index] = None
+                print("Connection removed")
+        
+        # Check if all players have left an in-progress game, if so then end the game
+        for thread in clientThreads:
+            if thread != None:
+                return
+        with mutex:
+            gameStarted = False
     except:
         print("Failed to join thread when removing connection.")
-
+    
 #handle all inputs from players, outputs will be handled in bulk via the broadcastGame() function
 def handleConnection(connection, index):
     global gameStarted
@@ -191,10 +201,13 @@ def broadcastToClients(data):
     for conn in range(len(connectionList)):
         try:
             if connectionList[conn] != None:
-                connectionList[conn].send(data.encode())
+                # check if client left, if so then close socket and join thread
+                if connectionList[conn].fileno() == -1:
+                    removeConnection(conn)
+                else:
+                    connectionList[conn].send(data.encode())
         except Exception as e:
             print(f"An unexpected error occurred during broadcast: {e}")
-            #they left, close socket and join thread
             removeConnection(conn)
 
 #Fill the connectionsList, and create threads for them
@@ -409,7 +422,7 @@ def updateGameState():
 
 def main():
     #loop so we can start new games afterwards
-    global gameStarted, currentScore, prevLevel, goals, playerPos
+    global gameStarted, currentScore, prevLevel, goals, playerPos, clientThreads
     while True:
         # reset values for new game
         with mutex:
@@ -439,5 +452,7 @@ def main():
         #make sure all threads close and sockets close
         for thread in range(len(clientThreads)):
             removeConnection(thread)
+        with mutex:
+            clientThreads = []
 
 main()
